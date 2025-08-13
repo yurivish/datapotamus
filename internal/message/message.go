@@ -7,4 +7,9 @@ type Msg struct {
 	Tokens   []Token
 }
 
+type PortMsg struct {
+	Msg
+	Port string
+}
+
 type Token struct{}
