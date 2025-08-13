@@ -11,6 +11,7 @@ import (
 )
 
 type JQStage struct {
+	id      string
 	in      <-chan msg.PortMessage
 	out     chan<- msg.PortMessage
 	code    *gojq.Code
@@ -21,7 +22,7 @@ type JQStageArgs struct {
 	Filter string `json:"filter"`
 }
 
-func NewJQStage(cfg JQStageArgs) (*JQStage, error) {
+func NewJQStage(id string, cfg JQStageArgs) (*JQStage, error) {
 	query, err := gojq.Parse(cfg.Filter)
 	if err != nil {
 		// todo: Use gojq.ParseError to get the error position and token of the parsing error
@@ -31,23 +32,31 @@ func NewJQStage(cfg JQStageArgs) (*JQStage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile JQ query: %w", err)
 	}
-	return &JQStage{code: code, timeout: 250 * time.Millisecond}, nil
+	return &JQStage{id: id, code: code, timeout: 250 * time.Millisecond}, nil
+}
+
+func (s *JQStage) ID() string {
+	return s.id
 }
 
 func (s *JQStage) Connect(in <-chan msg.PortMessage, out chan<- msg.PortMessage) {
+	fmt.Println("jq: connecting")
 	s.in = in
 	s.out = out
 }
 
 func (s *JQStage) Serve(ctx context.Context) error {
+	fmt.Println("jq:", s.id, "serving")
 	for {
 		select {
 		case m, ok := <-s.in:
+			fmt.Printf("jq: %v: received %v %v\n", s.id, m, ok)
 			// if the input channel is closed then exit gracefully
 			if !ok {
 				return suture.ErrDoNotRestart
 			}
 			results, err := s.Query(ctx, m.Data)
+			fmt.Println("jq results", results, err)
 			// send the error, if any
 			if err != nil {
 				s.out <- msg.PortMessage{Port: "error", Message: msg.Message{Data: err}}
@@ -60,6 +69,7 @@ func (s *JQStage) Serve(ctx context.Context) error {
 				}
 			}
 		case <-ctx.Done():
+			fmt.Printf("jq: %v: ctx done", s.id)
 			return ctx.Err()
 		}
 	}
