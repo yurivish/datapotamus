@@ -1,0 +1,1 @@
+- what if we say flow ids have to be "flow.xxxx" - makes it easier to see in the suture log messages and we can use that as a component in the pubsub subjects
