@@ -12,8 +12,8 @@ import (
 
 type JQStage struct {
 	id      string
-	in      <-chan msg.PortMessage
-	out     chan<- msg.PortMessage
+	in      <-chan msg.MsgOnPort
+	out     chan<- msg.MsgOnPort
 	code    *gojq.Code
 	timeout time.Duration
 }
@@ -39,7 +39,7 @@ func (s *JQStage) ID() string {
 	return s.id
 }
 
-func (s *JQStage) Connect(in <-chan msg.PortMessage, out chan<- msg.PortMessage) {
+func (s *JQStage) Connect(in <-chan msg.MsgOnPort, out chan<- msg.MsgOnPort) {
 	fmt.Println("jq: connecting")
 	s.in = in
 	s.out = out
@@ -59,13 +59,13 @@ func (s *JQStage) Serve(ctx context.Context) error {
 			fmt.Println("jq results", results, err)
 			// send the error, if any
 			if err != nil {
-				s.out <- msg.PortMessage{Port: "error", Message: msg.Message{Data: err}}
+				s.out <- msg.MsgOnPort{Port: "error", Msg: msg.Msg{Data: err}}
 			} else {
 				// otherwise send the results, if any.
 				// todo: we could send partial results even in the face of an error, or
 				// even multiple errors, if we decide that is the behavior we want.
 				for _, result := range results {
-					s.out <- msg.PortMessage{Port: "out", Message: msg.Message{Data: result}}
+					s.out <- msg.MsgOnPort{Port: "out", Msg: msg.Msg{Data: result}}
 				}
 			}
 		case <-ctx.Done():

@@ -33,11 +33,11 @@ func main() {
 	ctx := context.Background()
 	super.ServeBackground(ctx) // returns err
 
-	<-f.Ready()
+	<-f.Ready
 
 	// note: I think we actually need to set up a bunch of the stuff in the constructor and therefore need to have a separate cleanup function just in case the flow never gets added to the supervisor.
 	// Because otherwise, just because it's serving doesn't mean that it's actually done the subscription work yet.
-	pubsub.Pub(ps, "flow.flow1.stage.outside.port.input", msg.Message{Data: []any{1, 2, 3}})
+	pubsub.Pub(ps, "flow.flow1.stage.outside.port.input", msg.Msg{Data: []any{1, 2, 3}})
 	fmt.Println("sent a mess and now we wait", err)
 	// go func() {	super.Serve(context.Background()) }
 	// <-ctx.Done()

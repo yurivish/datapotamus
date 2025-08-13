@@ -13,7 +13,7 @@ type Stage interface {
 	ID() string // an ID / name for the stage, which has to be unique within its flow
 
 	// Called once prior to Serve being called.
-	Connect(in <-chan msg.PortMessage, out chan<- msg.PortMessage)
+	Connect(in <-chan msg.MsgOnPort, out chan<- msg.MsgOnPort)
 
 	// Run the stage, returning an error in case of unexpected failure,
 	// which will restart the stage with exponential backoff.

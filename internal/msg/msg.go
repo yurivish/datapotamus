@@ -1,14 +1,14 @@
 package msg
 
-type Message struct {
+type Msg struct {
 	Data     any
 	ID       string
 	ParentID string
 	Tokens   []Token
 }
 
-type PortMessage struct {
-	Message
+type MsgOnPort struct {
+	Msg
 	Port string
 }
 
