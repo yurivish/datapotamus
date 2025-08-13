@@ -86,7 +86,7 @@ func DebugSub(ps *PubSub, subj string, handler func(string, any, *sublist.Sublis
 	return sub(ps, subj, handler, options...)
 }
 
-// Returns a channel on which messages are sent.
+// Returns a channel onto which messages are placed.
 // The user is NOT responsible for closing the channel.
 // Both the subscription and channel will be closed once the context completes.
 func SubChan[M any](ps *PubSub, ctx context.Context, subj string, bufSize int, options ...SubOption) <-chan M {

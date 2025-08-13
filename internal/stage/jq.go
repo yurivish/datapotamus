@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"time"
 
-	"datapotamus.com/internal/message"
+	"datapotamus.com/internal/msg"
 	"github.com/itchyny/gojq"
+	"github.com/thejerf/suture/v4"
 )
 
 type JQStage struct {
-	code *gojq.Code
+	in      <-chan msg.PortMessage
+	out     chan<- msg.PortMessage
+	code    *gojq.Code
+	timeout time.Duration
 }
 
 type JQStageArgs struct {
@@ -20,44 +24,76 @@ type JQStageArgs struct {
 func NewJQStage(cfg JQStageArgs) (*JQStage, error) {
 	query, err := gojq.Parse(cfg.Filter)
 	if err != nil {
+		// todo: Use gojq.ParseError to get the error position and token of the parsing error
 		return nil, fmt.Errorf("failed to parse JQ query: %w", err)
 	}
 	code, err := gojq.Compile(query)
 	if err != nil {
-		// todo: Use gojq.ParseError to get the error position and token of the parsing error.
-		return nil, fmt.Errorf("failed to parse JQ query: %w", err)
+		return nil, fmt.Errorf("failed to compile JQ query: %w", err)
 	}
-	return &JQStage{code: code}, nil
+	return &JQStage{code: code, timeout: 250 * time.Millisecond}, nil
 }
 
-func (s *JQStage) Step(ctx context.Context, m message.PortMsg, ch chan<- message.PortMsg) {
-	// Run the JQ query with the input data, eagerly materializing the results to stay within the timeout
-	// note from README:
-	// > You can reuse the *Code against multiple inputs to avoid compilation of the same query.
-	// > But for arguments of code.Run, do not give values sharing same data between multiple calls.
-	// Agh, this feels so so so hacky and I just want to try using Rust after all..........!
-	qctx, _ := context.WithTimeout(ctx, 250*time.Millisecond) // todo: configurable timeout
-	it := s.code.RunWithContext(qctx, m.Data)
-	var xs []any
+func (s *JQStage) Connect(in <-chan msg.PortMessage, out chan<- msg.PortMessage) {
+	s.in = in
+	s.out = out
+}
+
+func (s *JQStage) Serve(ctx context.Context) error {
+	for {
+		select {
+		case m, ok := <-s.in:
+			// if the input channel is closed then exit gracefully
+			if !ok {
+				return suture.ErrDoNotRestart
+			}
+			results, err := s.Query(ctx, m.Data)
+			// send the error, if any
+			if err != nil {
+				s.out <- msg.PortMessage{Port: "error", Message: msg.Message{Data: err}}
+			} else {
+				// otherwise send the results, if any.
+				// todo: we could send partial results even in the face of an error, or
+				// even multiple errors, if we decide that is the behavior we want.
+				for _, result := range results {
+					s.out <- msg.PortMessage{Port: "out", Message: msg.Message{Data: result}}
+				}
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+}
+
+// Run the JQ query with the input data, eagerly materializing the results to stay within the timeout
+// If an error is encountered during execution, we return the partial results along with the error.
+func (s *JQStage) Query(ctx context.Context, data any) ([]any, error) {
+	// a note on code.Run from docs:
+	// >  It is safe to call this method in goroutines, to reuse a compiled *Code.
+	// > But for arguments, do not give values sharing same data between goroutines.
+	qctx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+	it := s.code.RunWithContext(qctx, data)
+
+	var results []any
 	// Loop structure inspired by the README example:
 	// https://github.com/itchyny/gojq?tab=readme-ov-file#usage-as-a-library
 	for {
-		v, ok := it.Next()
+		result, ok := it.Next()
 		if !ok {
 			break
 		}
-		if err, ok := v.(error); ok {
+		if err, ok := result.(error); ok {
 			if err, ok := err.(*gojq.HaltError); ok && err.Value() == nil {
 				break
 			}
+			return results, err
 			// note: the error is emitted prior to successful outputs.
 			// we stop at the first error.
-			ch <- message.PortMsg{Port: "error", Msg: message.Msg{Data: err}}
+			// ch <- message.PortMsg{Port: "error", Msg: message.Msg{Data: err}}
 		}
-		xs = append(xs, v)
+		results = append(results, result)
 	}
-
-	for _, x := range xs {
-		ch <- message.PortMsg{Port: "out", Msg: message.Msg{Data: x}}
-	}
+	return results, nil
 }
