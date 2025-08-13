@@ -1,16 +1,12 @@
 package stage
 
 import (
-	"iter"
-
 	"datapotamus.com/internal/message"
 )
 
 type JQStage struct {
 }
 
-func (s *JQStage) Process() iter.Seq2[string, message.Message] {
-	return func(yield func(port string, msg message.Message) bool) {
-		yield("out", message.Message{Data: "hi"})
-	}
+func (s *JQStage) Step(port string, m message.Msg, yield func(string, message.Msg)) {
+	yield("out", message.Msg{Data: "hi"})
 }

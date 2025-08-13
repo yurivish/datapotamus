@@ -1,6 +1,6 @@
 package message
 
-type Message struct {
+type Msg struct {
 	Data     any
 	ID       string
 	ParentID string
