@@ -1,0 +1,10 @@
+.DS_Store
+bin/
+tmp/
+build-errors.log
+**/*.key
+data
+*.bolt
+
+# Ignoring for now just so they stop showing up in Sublime Merge
+**/*_templ.go
