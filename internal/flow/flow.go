@@ -35,7 +35,7 @@ func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) *
 		// do we need to close them in error cases?
 		in := make(chan msg.InMsg, 100)
 		out := make(chan msg.OutMsg, 100)
-		s.Configure(stage.Config{In: in, Out: out})
+		s.Init(stage.Config{In: in, Out: out})
 		ins[s.ID()] = in
 		outs[s.ID()] = out
 	}
@@ -46,7 +46,10 @@ func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) *
 	// parentid-id relationships between messages and perhaps the
 	// full set of message contents as well.
 	c := NewCoordinator(id, ps, conns, ins, outs)
+
+	// The coordinator is treated as another service, alongside the stages.
 	sv.Add(c)
+
 	for _, s := range stages {
 		sv.Add(s)
 	}
@@ -95,7 +98,7 @@ func NewCoordinator(id string, ps *pubsub.PubSub, conns []Conn, ins map[string]c
 		outs:  outs,
 		Ready: make(chan struct{}),
 	}
-} // we want to iterate through {input,output,stage}. but honestly would be easier if we can just access the in and out from each stage, i think.
+}
 
 func (c *coordinator) Serve(ctx context.Context) error {
 	// Connect output subjects to input channels, deferring unsubscription

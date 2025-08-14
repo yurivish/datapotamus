@@ -11,7 +11,7 @@ import (
 )
 
 type JQStage struct {
-	id      string
+	Base
 	in      <-chan msg.InMsg
 	out     chan<- msg.OutMsg
 	code    *gojq.Code
@@ -32,14 +32,11 @@ func NewJQStage(id string, cfg JQStageArgs) (*JQStage, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to compile JQ query: %w", err)
 	}
-	return &JQStage{id: id, code: code, timeout: 250 * time.Millisecond}, nil
+	timeout := 250 * time.Millisecond
+	return &JQStage{Base: NewBase(id), code: code, timeout: timeout}, nil
 }
 
-func (s *JQStage) ID() string {
-	return s.id
-}
-
-func (s *JQStage) Configure(cfg Config) {
+func (s *JQStage) Init(cfg Config) {
 	fmt.Println("jq: connecting")
 	s.in = cfg.In
 	s.out = cfg.Out
@@ -65,7 +62,7 @@ func (s *JQStage) Serve(ctx context.Context) error {
 				// todo: we could send partial results even in the face of an error, or
 				// even multiple errors, if we decide that is the behavior we want.
 				for _, result := range results {
-					s.out <- msg.OutMsg{Addr: msg.Addr{Stage: s.id, Port: "out"}, Msg: msg.Msg{Data: result}}
+					s.out <- msg.Msg{Data: result}.Out(msg.NewAddr(s.id, "out"))
 				}
 			}
 		case <-ctx.Done():
