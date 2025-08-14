@@ -49,8 +49,6 @@ type OutMsg struct {
 	Addr
 }
 
-type Token struct{}
-
 func NewAddr(stage, port string) Addr {
 	return Addr{Stage: stage, Port: port}
 }

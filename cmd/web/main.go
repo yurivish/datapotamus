@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"datapotamus.com/internal/flow"
-	"datapotamus.com/internal/lineage"
 	"datapotamus.com/internal/msg"
 	"datapotamus.com/internal/pubsub"
 	"datapotamus.com/internal/stage"
@@ -16,27 +15,6 @@ import (
 
 func main() {
 	fmt.Println("Hi")
-
-	// Example usage
-	dag := lineage.NewDAG().WithDebug()
-	// Build initial tree (root (A (C D)) B))
-	dag.AddEdge("", "root")
-	dag.AddEdge("root", "A")
-	dag.AddEdge("root", "B")
-	dag.AddEdge("A", "C")
-	dag.AddEdge("A", "D")
-
-	// Create merge node that groups B, C, D
-	dag.CreateMergeNode("M", []string{"B", "C", "D"})
-
-	// M can have its own children
-	dag.AddEdge("M", "E")
-
-	// Test lineage
-	fmt.Println("Lineage of C:", dag.GetLineage("C"))
-	fmt.Println("Lineage of M:", dag.GetLineage("M"))
-
-	return
 
 	super := suture.NewSimple("app")
 	ps := pubsub.NewPubSub()

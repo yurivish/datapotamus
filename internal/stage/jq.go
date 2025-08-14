@@ -7,7 +7,6 @@ import (
 
 	"datapotamus.com/internal/msg"
 	"github.com/itchyny/gojq"
-	"github.com/thejerf/suture/v4"
 )
 
 // todo: where if anywhere should we use suture.ErrTerminateSupervisorTree to fail the whole flow on unexpected errors?
@@ -44,7 +43,7 @@ func (s *JQ) Serve(ctx context.Context) error {
 			fmt.Printf("jq: %v: received %v %v\n", s.stage, m, ok)
 			// if the input channel is closed then exit gracefully
 			if !ok {
-				return suture.ErrDoNotRestart
+				return nil
 			}
 			results, err := s.Query(ctx, m.Data)
 			fmt.Println("jq results", results, err)
