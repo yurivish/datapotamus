@@ -19,7 +19,7 @@ func main() {
 
 	// Example usage
 	dag := lineage.NewDAG().WithDebug()
-	// Build initial tree
+	// Build initial tree (root (A (C D)) B))
 	dag.AddEdge("", "root")
 	dag.AddEdge("root", "A")
 	dag.AddEdge("root", "B")
@@ -30,7 +30,7 @@ func main() {
 	dag.CreateMergeNode("M", []string{"B", "C", "D"})
 
 	// M can have its own children
-	dag.AddEdge("E", "M")
+	dag.AddEdge("M", "E")
 
 	// Test lineage
 	fmt.Println("Lineage of C:", dag.GetLineage("C"))

@@ -65,6 +65,7 @@ func (d *DAG) HasNode(id string) bool {
 }
 
 // Returns the ancestors and descendants of the given node.
+// Note that the lineage does not include siblings.
 func (d *DAG) GetLineage(queryID string) []string {
 	query := d.nodes[queryID]
 	if query == nil {
@@ -89,26 +90,26 @@ func (d *DAG) GetLineage(queryID string) []string {
 }
 
 // Create a merge node that groups multiple nodes. Idempotent.
-func (d *DAG) CreateMergeNode(mergeID string, nodeIDs []string) {
+func (d *DAG) CreateMergeNode(parentIDs []string, id string) {
 	// If merge node already exists, do nothing.
 	// This assumes that its children are the node IDs
 	// If merge node already exists, validate it has the expected children
-	if merge, exists := d.nodes[mergeID]; exists {
-		d.assertNodeSetEquals(merge.Children, nodeIDs,
-			fmt.Sprintf("merge node %q", mergeID))
+	if merge, exists := d.nodes[id]; exists {
+		d.assertNodeSetEquals(merge.Children, parentIDs,
+			fmt.Sprintf("merge node %q", id))
 		return
 	}
 
 	// Ensure all nodes exist first
-	for _, nodeID := range nodeIDs {
+	for _, nodeID := range parentIDs {
 		if d.nodes[nodeID] == nil {
 			panic(fmt.Sprintf("Node %s must exist before creating merge node", nodeID))
 		}
 	}
 
 	// Create merge node and add edges
-	for _, nodeID := range nodeIDs {
-		d.AddEdge(mergeID, nodeID)
+	for _, nodeID := range parentIDs {
+		d.AddEdge(nodeID, id)
 	}
 }
 
