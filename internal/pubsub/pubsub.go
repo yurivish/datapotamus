@@ -4,8 +4,8 @@ import (
 	"context"
 	"runtime"
 
+	"datapotamus.com/internal/common"
 	"datapotamus.com/internal/sublist"
-	"github.com/oklog/ulid/v2"
 )
 
 // Simple pub-sub system, optimized for observability and ease of use.
@@ -37,7 +37,7 @@ func sub(ps *PubSub, subj string, handler any, options ...SubOption) context.Can
 	}
 
 	// Create the underlyng Subscription object, giving it a unique ID
-	id := ulid.Make().String()
+	id := common.NewID()
 	sub := sublist.Subscription{Subject: []byte(subj), Value: handler, ID: id, Debug: opts.Debug}
 
 	// Gather file and line information for subscription and include them

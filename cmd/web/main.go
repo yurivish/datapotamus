@@ -18,17 +18,16 @@ func main() {
 	fmt.Println("Hi")
 
 	// Example usage
-	dag := lineage.NewDAG()
-
+	dag := lineage.NewDAG().WithDebug()
 	// Build initial tree
-	dag.AddEdge("root", "")
-	dag.AddEdge("A", "root")
-	dag.AddEdge("B", "root")
-	dag.AddEdge("C", "A")
-	dag.AddEdge("D", "A")
+	dag.AddEdge("", "root")
+	dag.AddEdge("root", "A")
+	dag.AddEdge("root", "B")
+	dag.AddEdge("A", "C")
+	dag.AddEdge("A", "D")
 
 	// Create merge node that groups B, C, D
-	dag.CreateMergeNode("M", "B", "C", "D")
+	dag.CreateMergeNode("M", []string{"B", "C", "D"})
 
 	// M can have its own children
 	dag.AddEdge("E", "M")

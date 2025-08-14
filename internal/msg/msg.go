@@ -4,17 +4,17 @@ import (
 	"datapotamus.com/internal/common"
 )
 
-type MsgGroup struct {
+type MergeGroup struct {
 	ID        string
 	ParentIDs []string
 }
 
-func NewMsgGroup(ms []Msg) MsgGroup {
+func Merge(ms []Msg) MergeGroup {
 	var ids []string
 	for _, m := range ms {
 		ids = append(ids, m.ID)
 	}
-	return MsgGroup{ID: common.NewID(), ParentIDs: ids}
+	return MergeGroup{ID: common.NewID(), ParentIDs: ids}
 }
 
 type Msg struct {
@@ -22,11 +22,12 @@ type Msg struct {
 	ID       string
 	ParentID string
 	Tokens   []Token
-	// If the parent ID of this message points to a group, this field will
-	// point to that group. This allows for provenance tracking based purely
-	// on observing message flows, since we allow only one level of grouping.
+	// If the parent ID of this message points to a merge group, this field
+	// points to that group. This allows for provenance tracking based purely
+	// on observing message flows, since we allow only one level of grouping,
+	// and including the group in the message allows it to be observed externally.
 	// Otherwise this field will be set to nil.
-	ParentGroup *MsgGroup
+	Parent *MergeGroup
 }
 
 type Addr struct {
