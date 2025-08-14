@@ -149,7 +149,7 @@ func (d *DAG) CreateMergeNode(parentIDs []string, id string) {
 			// messages (not other merges).
 			// (The way this makes tracing easy is that it enables us to see all of the information
 			// we need to construct the trace tree by observing stage output channels.)
-			panic(fmt.Sprintf("Node %s cannot be the parent of a merge node for it itself must be a merge node (it has multiple parents)", nodeID)
+			panic(fmt.Sprintf("Node %s cannot be the parent of a merge node for it itself must be a merge node (it has multiple parents)", nodeID))
 		}
 	}
 
