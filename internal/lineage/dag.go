@@ -67,10 +67,13 @@ func (d *DAG) HasNode(id string) bool {
 // Returns the ancestors and descendants of the given node.
 // Note that the lineage does not include siblings.
 // TODO: Accept with an array of query nodeIDs.
+// TODO: Return edges - so we can reconstruct the tree from the return value.
+//
+//	Maybe this means it should return `Node`s.
 func (d *DAG) GetLineage(queryID string) []string {
 	query := d.nodes[queryID]
 	if query == nil {
-		return nil
+		panic(fmt.Sprintf("GetLineage: node with ID %s does not exist", queryID))
 	}
 
 	visited := map[string]bool{}
@@ -103,7 +106,7 @@ func (d *DAG) GetRootAncestors(nodeIDs []string) []string {
 	for _, id := range nodeIDs {
 		node := d.nodes[id]
 		if node != nil {
-			panic(fmt.Sprintf("GetRootAncestors: node for node ID %s does not exist", id))
+			panic(fmt.Sprintf("GetRootAncestors: node with ID %s does not exist", id))
 		}
 		starts = append(starts, node)
 	}
