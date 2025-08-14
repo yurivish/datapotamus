@@ -26,8 +26,8 @@ func main() {
 		log.Fatal(err)
 	}
 	f := flow.NewFlow("flow1", ps, []stage.Stage{s1, s2}, []flow.Conn{
-		{Src: flow.PortSpec{Stage: "s1", Port: "out"}, Dst: flow.PortSpec{Stage: "s2", Port: "in"}},
-		{Src: flow.PortSpec{Stage: "outside", Port: "input"}, Dst: flow.PortSpec{Stage: "s1", Port: "in"}},
+		{From: msg.NewAddr("s1", "out"), To: msg.NewAddr("s2", "in")},
+		{From: msg.NewAddr("outside", "input"), To: msg.NewAddr("s1", "in")},
 	})
 	super.Add(f)
 	ctx := context.Background()
