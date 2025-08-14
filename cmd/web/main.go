@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"datapotamus.com/internal/flow"
+	"datapotamus.com/internal/lineage"
 	"datapotamus.com/internal/msg"
 	"datapotamus.com/internal/pubsub"
 	"datapotamus.com/internal/stage"
@@ -15,6 +16,29 @@ import (
 
 func main() {
 	fmt.Println("Hi")
+
+	// Example usage
+	dag := lineage.NewDAG()
+
+	// Build initial tree
+	dag.AddEdge("root", "")
+	dag.AddEdge("A", "root")
+	dag.AddEdge("B", "root")
+	dag.AddEdge("C", "A")
+	dag.AddEdge("D", "A")
+
+	// Create merge node that groups B, C, D
+	dag.CreateMergeNode("M", "B", "C", "D")
+
+	// M can have its own children
+	dag.AddEdge("E", "M")
+
+	// Test lineage
+	fmt.Println("Lineage of C:", dag.GetLineage("C"))
+	fmt.Println("Lineage of M:", dag.GetLineage("M"))
+
+	return
+
 	super := suture.NewSimple("app")
 	ps := pubsub.NewPubSub()
 	s1, err := stage.NewJQ("s1", stage.JQConfig{Filter: ".[]"})
@@ -28,11 +52,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	f := flow.NewFlow("flow1", ps, []stage.Stage{s1, s2, s3}, []flow.Conn{
+	f, err := flow.NewFlow("flow1", ps, []stage.Stage{s1, s2, s3}, []flow.Conn{
 		{From: msg.NewAddr("s1", "out"), To: msg.NewAddr("s2", "in")},
 		{From: msg.NewAddr("s2", "out"), To: msg.NewAddr("s3", "in")},
 		{From: msg.NewAddr("outside", "input"), To: msg.NewAddr("s1", "in")},
 	})
+	if err != nil {
+		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
+	}
 	super.Add(f)
 	ctx := context.Background()
 	super.ServeBackground(ctx) // returns err in a channel

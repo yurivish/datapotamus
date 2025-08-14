@@ -25,7 +25,7 @@ type Flow struct {
 	Ready chan struct{}
 }
 
-func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) *Flow {
+func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) (*Flow, error) {
 	// Create maps from stage ID to input and output channel
 	ins := map[string]chan msg.InMsg{}
 	outs := map[string]chan msg.OutMsg{}
@@ -36,8 +36,19 @@ func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) *
 		in := make(chan msg.InMsg, 100)
 		out := make(chan msg.OutMsg, 100)
 		s.Prepare(stage.Config{In: in, Out: out})
-		ins[s.ID()] = in
-		outs[s.ID()] = out
+		id := s.ID()
+		ins[id] = in
+		outs[id] = out
+	}
+
+	// Validate that all connection endpoints are for stages that exist
+	for _, conn := range conns {
+		if _, ok := ins[conn.From.Stage]; !ok {
+			return nil, fmt.Errorf("new flow: 'from' stage does not exist: %v", conn.From)
+		}
+		if _, ok := ins[conn.To.Stage]; !ok {
+			return nil, fmt.Errorf("new flow: 'from' stage does not exist: %v", conn.From)
+		}
 	}
 
 	sv := suture.NewSimple(id)
@@ -54,7 +65,7 @@ func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) *
 		sv.Add(s)
 	}
 
-	return &Flow{Supervisor: sv, Ready: c.Ready}
+	return &Flow{Supervisor: sv, Ready: c.Ready}, nil
 }
 
 func (f *Flow) Serve(ctx context.Context) error {
