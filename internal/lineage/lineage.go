@@ -39,15 +39,13 @@ func (d *DAG) AddEdge(parentID, id string) {
 
 	// Root node case (no parent)
 	if parentID == "" {
-		if d.debug {
-			if childAlreadyExists {
-				panic(fmt.Sprintf("edge from \"\" to %q already exists", id))
-			}
+		if childAlreadyExists {
+			panic(fmt.Sprintf("edge from \"\" to %q already exists", id))
 		}
 		return
 	}
 
-	// Get or create parent node.
+	// Get or create parent node
 	parent := d.nodes[parentID]
 	if parent == nil {
 		parent = &Node{ID: parentID}
