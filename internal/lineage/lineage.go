@@ -27,7 +27,7 @@ func (d *DAG) WithDebug() *DAG {
 
 func (d *DAG) AddEdge(parentID, id string) {
 	if id == "" {
-		panic("cannot add an edge where the child is a root node (id = \"\")")
+		panic("cannot add an edge where the child is \"\"")
 	}
 
 	// Get or create child node
@@ -54,20 +54,7 @@ func (d *DAG) AddEdge(parentID, id string) {
 		d.nodes[parentID] = parent
 	}
 
-	if d.debug {
-		// Check if edge already exists to avoid duplicates
-		for _, p := range child.Parents {
-			if p.ID == parentID {
-				panic(fmt.Sprintf("Edge %q -> %q already exists child's parents", parentID, id))
-			}
-		}
-
-		for _, c := range parent.Children {
-			if c.ID == id {
-				panic(fmt.Sprintf("Edge %q -> %q already exists in parent's children", parentID, id))
-			}
-		}
-	}
+	d.assertNoEdge(parentID, id)
 
 	// Link bidirectionally
 	parent.Children = append(parent.Children, child)
@@ -107,29 +94,10 @@ func (d *DAG) GetLineage(queryID string) []string {
 func (d *DAG) CreateMergeNode(mergeID string, nodeIDs []string) {
 	// If merge node already exists, do nothing.
 	// This assumes that its children are the node IDs
-	if merge, ok := d.nodes[mergeID]; ok {
-		_ = merge
-		if len(merge.Children) != len(nodeIDs) {
-			panic("merge node already exists with unexpected number of children")
-		}
-
-		if d.debug {
-			// Check that the merge node has exactly the expected children
-			ids := map[string]bool{}
-			for _, id := range nodeIDs {
-				ids[id] = true
-			}
-			if len(nodeIDs) != len(ids) {
-				panic("nodeIDs contains duplicate nodes")
-			}
-
-			for _, id := range nodeIDs {
-				if _, ok := ids[id]; !ok {
-					panic(fmt.Sprintf("merge node exists with incorrect children: node %q is in nodeIDs but not the existing merge node.", id))
-				}
-			}
-		}
-
+	// If merge node already exists, validate it has the expected children
+	if merge, exists := d.nodes[mergeID]; exists {
+		d.assertNodeSetEquals(merge.Children, nodeIDs,
+			fmt.Sprintf("merge node %q", mergeID))
 		return
 	}
 
@@ -187,4 +155,74 @@ func traverseDAG(
 	}
 
 	return result
+}
+
+// Expensive helper method to check if an edge already exists
+func (d *DAG) hasEdge(parentID, childID string) bool {
+	parent, parentExists := d.nodes[parentID]
+	child, childExists := d.nodes[childID]
+
+	if !parentExists || !childExists {
+		return false
+	}
+
+	// Check from parent's perspective
+	for _, c := range parent.Children {
+		if c.ID == childID {
+			return true
+		}
+	}
+
+	// Check from child's perspective
+	for _, p := range child.Parents {
+		if p.ID == parentID {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Expensive helper method to validate edge doesn't already exist
+func (d *DAG) assertNoEdge(parentID, childID string) {
+	if !d.debug {
+		return
+	}
+
+	if d.hasEdge(parentID, childID) {
+		panic(fmt.Sprintf("Edge %q -> %q already exists", parentID, childID))
+	}
+}
+
+// Expensive helper method to validate node sets match
+func (d *DAG) assertNodeSetEquals(actual []*Node, expected []string, context string) {
+	if !d.debug {
+		return
+	}
+
+	if len(actual) != len(expected) {
+		panic(fmt.Sprintf("%s: expected %d nodes, got %d", context, len(expected), len(actual)))
+	}
+
+	// Build set of expected IDs
+	expectedSet := make(map[string]bool, len(expected))
+	for _, id := range expected {
+		if expectedSet[id] {
+			panic(fmt.Sprintf("%s: duplicate ID %q in expected set", context, id))
+		}
+		expectedSet[id] = true
+	}
+
+	// Check actual matches expected
+	for _, node := range actual {
+		if !expectedSet[node.ID] {
+			panic(fmt.Sprintf("%s: unexpected node %q", context, node.ID))
+		}
+		delete(expectedSet, node.ID)
+	}
+
+	// Check for missing nodes
+	for id := range expectedSet {
+		panic(fmt.Sprintf("%s: missing expected node %q", context, id))
+	}
 }
