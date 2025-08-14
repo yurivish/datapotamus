@@ -8,6 +8,12 @@ type Node struct {
 	Children []*Node
 }
 
+// This DAG type is designed to represent a tree with structural sharing,
+// Which is what our flow system emits in terms of message relationships
+// through id and parent ID. For the most part, messages are derived from
+// other messages and form a tree. But sometimes we create a merge node
+// from multiple messages, such as when messages are batched, and assign
+// that its own ID that can then be used as the parent for further messages.
 type DAG struct {
 	nodes map[string]*Node
 	debug bool // enable expensive assertions
@@ -133,8 +139,17 @@ func (d *DAG) CreateMergeNode(parentIDs []string, id string) {
 
 	// Ensure all nodes exist first
 	for _, nodeID := range parentIDs {
-		if d.nodes[nodeID] == nil {
+		parent := d.nodes[nodeID]
+		if parent == nil {
 			panic(fmt.Sprintf("Node %s must exist before creating merge node", nodeID))
+		}
+		if len(parent.Parents) > 1 {
+			// To make tracing easy, we only allow one level of merge node -- a message parent id
+			// Either refers to another message ID or to a merge node ID representing the merge of
+			// messages (not other merges).
+			// (The way this makes tracing easy is that it enables us to see all of the information
+			// we need to construct the trace tree by observing stage output channels.)
+			panic(fmt.Sprintf("Node %s cannot be the parent of a merge node for it itself must be a merge node (it has multiple parents)", nodeID)
 		}
 	}
 
