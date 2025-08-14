@@ -10,6 +10,8 @@ import (
 	"github.com/thejerf/suture/v4"
 )
 
+// todo: where if anywhere should we use suture.ErrTerminateSupervisorTree to fail the whole flow on unexpected errors?
+
 type JQStage struct {
 	Base
 	in      <-chan msg.InMsg
@@ -56,7 +58,7 @@ func (s *JQStage) Serve(ctx context.Context) error {
 			fmt.Println("jq results", results, err)
 			// send the error, if any
 			if err != nil {
-				s.out <- msg.OutMsg{Addr: msg.Addr{Stage: s.id, Port: "error"}, Msg: msg.Msg{Data: err}}
+				s.out <- msg.Msg{Data: err}.Out(msg.NewAddr(s.id, "error"))
 			} else {
 				// otherwise send the results, if any.
 				// todo: we could send partial results even in the face of an error, or
