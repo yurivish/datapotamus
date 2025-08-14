@@ -17,30 +17,35 @@ func main() {
 	fmt.Println("Hi")
 	super := suture.NewSimple("app")
 	ps := pubsub.NewPubSub()
-	s1, err := stage.NewJQStage("s1", stage.JQStageArgs{Filter: ".[]"})
+	s1, err := stage.NewJQ("s1", stage.JQConfig{Filter: ".[]"})
 	if err != nil {
 		log.Fatal(err)
 	}
-	s2, err := stage.NewJQStage("s2", stage.JQStageArgs{Filter: "[.]"})
+	s2, err := stage.NewDelay("s2", stage.DelayConfig{Ms: 1000})
+
+	s3, err := stage.NewJQ("s3", stage.JQConfig{Filter: "[.]"})
 	if err != nil {
 		log.Fatal(err)
 	}
-	f := flow.NewFlow("flow1", ps, []stage.Stage{s1, s2}, []flow.Conn{
+
+	f := flow.NewFlow("flow1", ps, []stage.Stage{s1, s2, s3}, []flow.Conn{
 		{From: msg.NewAddr("s1", "out"), To: msg.NewAddr("s2", "in")},
+		{From: msg.NewAddr("s2", "out"), To: msg.NewAddr("s3", "in")},
 		{From: msg.NewAddr("outside", "input"), To: msg.NewAddr("s1", "in")},
 	})
 	super.Add(f)
 	ctx := context.Background()
-	super.ServeBackground(ctx) // returns err
+	super.ServeBackground(ctx) // returns err in a channel
 
 	<-f.Ready
 
 	// note: I think we actually need to set up a bunch of the stuff in the constructor and therefore need to have a separate cleanup function just in case the flow never gets added to the supervisor.
 	// Because otherwise, just because it's serving doesn't mean that it's actually done the subscription work yet.
-	pubsub.Pub(ps, "flow.flow1.stage.outside.port.input", msg.Msg{Data: []any{1, 2, 3}})
+	pubsub.Pub(ps, "flow.flow1.stage.outside.port.input", msg.Msg{Data: []any{1}})
 	fmt.Println("sent a mess and now we wait", err)
 	// go func() {	super.Serve(context.Background()) }
 	// <-ctx.Done()
 	//
-	time.Sleep(time.Second)
+	time.Sleep(3 * time.Second)
+	fmt.Println("woopydoo")
 }

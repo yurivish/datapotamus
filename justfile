@@ -1,5 +1,5 @@
 air:
-    cd cmd/web && go tool air
+     go tool air
 run:
     cd cmd/web && go run .
 lines:

@@ -1,0 +1,5 @@
+- add port descriptors (In: map[string]string, Out: map[string]string) to stage spec or just to stages - in a registry?
+
+- add validation for connections
+    - they should be between real ports on real stages
+    - only from outputs to inputs

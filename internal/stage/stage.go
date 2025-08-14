@@ -31,7 +31,9 @@ type Config struct {
 // Base stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
 type Base struct {
-	id string
+	id  string
+	in  <-chan msg.InMsg
+	out chan<- msg.OutMsg
 }
 
 func NewBase(id string) Base {
@@ -42,4 +44,9 @@ func NewBase(id string) Base {
 
 func (s *Base) ID() string {
 	return s.id
+}
+
+func (s *Base) Init(cfg Config) {
+	s.in = cfg.In
+	s.out = cfg.Out
 }

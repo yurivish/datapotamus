@@ -1,6 +1,8 @@
 package msg
 
-import "github.com/oklog/ulid/v2"
+import (
+	"datapotamus.com/internal/common"
+)
 
 type Msg struct {
 	Data     any
@@ -34,10 +36,18 @@ func NewAddr(stage, port string) Addr {
 	return Addr{Stage: stage, Port: port}
 }
 
-// maybe functional options for parentid/tokens and just call this NewMsg
-func RootMsg(data any) Msg {
-	id := ulid.Make().String()
-	return Msg{Data: data, ID: id}
+// maybe functional options for parentid/tokens and just call this New
+func New(data any) Msg {
+	return Msg{Data: data, ID: common.NewID()}
+}
+
+func (m Msg) Child(data any) Msg {
+	return Msg{
+		Data:     data,
+		ID:       common.NewID(),
+		ParentID: m.ID,
+		Tokens:   m.Tokens,
+	}
 }
 
 func (m Msg) In(addr Addr) InMsg {

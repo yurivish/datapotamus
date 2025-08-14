@@ -12,19 +12,17 @@ import (
 
 // todo: where if anywhere should we use suture.ErrTerminateSupervisorTree to fail the whole flow on unexpected errors?
 
-type JQStage struct {
+type JQ struct {
 	Base
-	in      <-chan msg.InMsg
-	out     chan<- msg.OutMsg
 	code    *gojq.Code
 	timeout time.Duration
 }
 
-type JQStageArgs struct {
+type JQConfig struct {
 	Filter string `json:"filter"`
 }
 
-func NewJQStage(id string, cfg JQStageArgs) (*JQStage, error) {
+func NewJQ(id string, cfg JQConfig) (*JQ, error) {
 	query, err := gojq.Parse(cfg.Filter)
 	if err != nil {
 		// todo: Use gojq.ParseError to get the error position and token of the parsing error
@@ -35,16 +33,10 @@ func NewJQStage(id string, cfg JQStageArgs) (*JQStage, error) {
 		return nil, fmt.Errorf("failed to compile JQ query: %w", err)
 	}
 	timeout := 250 * time.Millisecond
-	return &JQStage{Base: NewBase(id), code: code, timeout: timeout}, nil
+	return &JQ{Base: NewBase(id), code: code, timeout: timeout}, nil
 }
 
-func (s *JQStage) Init(cfg Config) {
-	fmt.Println("jq: connecting")
-	s.in = cfg.In
-	s.out = cfg.Out
-}
-
-func (s *JQStage) Serve(ctx context.Context) error {
+func (s *JQ) Serve(ctx context.Context) error {
 	fmt.Println("jq:", s.id, "serving")
 	for {
 		select {
@@ -58,18 +50,18 @@ func (s *JQStage) Serve(ctx context.Context) error {
 			fmt.Println("jq results", results, err)
 			// send the error, if any
 			if err != nil {
-				s.out <- msg.Msg{Data: err}.Out(msg.NewAddr(s.id, "error"))
+				s.out <- msg.New(err).Out(msg.NewAddr(s.id, "error"))
 			} else {
 				// otherwise send the results, if any.
 				// todo: we could send partial results even in the face of an error, or
 				// even multiple errors, if we decide that is the behavior we want.
 				for _, result := range results {
-					s.out <- msg.Msg{Data: result}.Out(msg.NewAddr(s.id, "out"))
+					s.out <- msg.New(result).Out(msg.NewAddr(s.id, "out"))
 				}
 			}
 		case <-ctx.Done():
 			fmt.Printf("jq: %v: ctx done", s.id)
-			return ctx.Err()
+			return nil
 		}
 	}
 
@@ -77,7 +69,7 @@ func (s *JQStage) Serve(ctx context.Context) error {
 
 // Run the JQ query with the input data, eagerly materializing the results to stay within the timeout
 // If an error is encountered during execution, we return the partial results along with the error.
-func (s *JQStage) Query(ctx context.Context, data any) ([]any, error) {
+func (s *JQ) Query(ctx context.Context, data any) ([]any, error) {
 	// a note on code.Run from docs:
 	// >  It is safe to call this method in goroutines, to reuse a compiled *Code.
 	// > But for arguments, do not give values sharing same data between goroutines.
