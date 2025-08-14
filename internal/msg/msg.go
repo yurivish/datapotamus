@@ -2,6 +2,7 @@ package msg
 
 import (
 	"datapotamus.com/internal/common"
+	"datapotamus.com/internal/token"
 )
 
 type MergeGroup struct {
@@ -21,7 +22,7 @@ type Msg struct {
 	Data     any
 	ID       string
 	ParentID string
-	Tokens   []Token
+	Tokens   token.Tokens
 	// If the parent ID of this message points to a merge group, this field
 	// points to that group. This allows for provenance tracking based purely
 	// on observing message flows, since we allow only one level of grouping,
@@ -57,8 +58,7 @@ func New(data any) Msg {
 	return Msg{Data: data, ID: common.NewID()}
 }
 
-// AddToken? AddTokenGroup?
-
+// Returns a new message that is a child of the parent message.
 func (m Msg) Child(data any) Msg {
 	return Msg{
 		Data:     data,
@@ -66,6 +66,13 @@ func (m Msg) Child(data any) Msg {
 		ParentID: m.ID,
 		Tokens:   m.Tokens,
 	}
+}
+
+// Returns the same message with the given Tokens merged in.
+// note: value receiver; we may want to change this to pointer...
+func (m Msg) MergeTokens(tokens token.Tokens) Msg {
+	m.Tokens = m.Tokens.Merge(tokens)
+	return m
 }
 
 // A message together with the stage/port address it is arriving on.

@@ -66,6 +66,7 @@ func (d *DAG) HasNode(id string) bool {
 
 // Returns the ancestors and descendants of the given node.
 // Note that the lineage does not include siblings.
+// TODO: Accept with an array of query nodeIDs.
 func (d *DAG) GetLineage(queryID string) []string {
 	query := d.nodes[queryID]
 	if query == nil {
@@ -77,16 +78,43 @@ func (d *DAG) GetLineage(queryID string) []string {
 	ids := []string{queryID}
 
 	// Get ancestors by traversing up through parents
-	ids = traverseDAG(query.Parents, visited, ids, func(n *Node) []*Node {
-		return n.Parents
-	})
+	ids = traverseDAG(
+		query.Parents, visited, ids,
+		func(n *Node) []*Node { return n.Parents },
+		nil)
 
 	// Get descendants by traversing down through children
-	ids = traverseDAG(query.Children, visited, ids, func(n *Node) []*Node {
-		return n.Children
-	})
+	ids = traverseDAG(
+		query.Children, visited, ids,
+		func(n *Node) []*Node { return n.Children },
+		nil)
 
 	return ids
+}
+
+// GetRootAncestors returns all root nodes (nodes with no parents) that are
+// ancestors of the given node IDs. This is more efficient than GetLineage
+// as it only traverses up through parents and only collects terminal nodes.
+func (d *DAG) GetRootAncestors(nodeIDs []string) []string {
+	visited := map[string]bool{}
+
+	// Collect starting nodes
+	starts := []*Node{}
+	for _, id := range nodeIDs {
+		node := d.nodes[id]
+		if node != nil {
+			panic(fmt.Sprintf("GetRootAncestors: node for node ID %s does not exist", id))
+		}
+		starts = append(starts, node)
+	}
+
+	// Traverse up through parents, collecting only roots.
+	// The visited map ensures each root is only added once.
+	return traverseDAG(
+		starts, visited, nil,
+		func(n *Node) []*Node { return n.Parents },
+		// Only include nodes with no parents
+		func(n *Node) bool { return len(n.Parents) == 0 })
 }
 
 // Create a merge node that groups multiple nodes. Idempotent.
@@ -114,16 +142,20 @@ func (d *DAG) CreateMergeNode(parentIDs []string, id string) {
 }
 
 // Generic DAG traversal in depth-first order.
+// TODO: Maybe provide options as a struct so the arguments are clearer from the call site
 func traverseDAG(
 	// nodes to start the traversal from
 	starts []*Node,
 	// nodes that have already been visited
 	visited map[string]bool,
-	// processed nodes will be appended to this slice
+	// processed nodes meeting the filter will be appended to this slice
 	// (useful if you wnat to accumulate the results of multiple traversals)
 	result []string,
 	// next nodes to explore (so far, either parents or children)
 	getNext func(*Node) []*Node,
+	// optional filter: if provided, only nodes where this returns true are added to result
+	// if nil, all visited nodes are added (preserves original behavior)
+	shouldInclude func(*Node) bool,
 ) []string {
 	stack := []*Node{}
 
@@ -142,7 +174,9 @@ func traverseDAG(
 		stack = stack[:end]
 
 		// Process node
-		result = append(result, node.ID)
+		if shouldInclude == nil || shouldInclude(node) {
+			result = append(result, node.ID)
+		}
 
 		// Push unvisited neighbors
 		for _, next := range getNext(node) {

@@ -18,36 +18,35 @@ type JQ struct {
 }
 
 type JQConfig struct {
-	Filter string `json:"filter"`
+	Filter        string `json:"filter"`
+	TimeoutMillis int64  `json:"timeoutMillis"`
 }
 
 func NewJQ(id string, cfg JQConfig) (*JQ, error) {
 	query, err := gojq.Parse(cfg.Filter)
 	if err != nil {
-		// todo: Use gojq.ParseError to get the error position and token of the parsing error
-		return nil, fmt.Errorf("failed to parse JQ query: %w", err)
+		return nil, fmt.Errorf("jq: failed to parse filter: %w", err)
 	}
 	code, err := gojq.Compile(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to compile JQ query: %w", err)
+		return nil, fmt.Errorf("jq: failed to compile filter: %w", err)
 	}
-	timeout := 250 * time.Millisecond
+	timeout := time.Duration(cfg.TimeoutMillis) * time.Millisecond
 	return &JQ{Base: NewBase(id), code: code, timeout: timeout}, nil
 }
 
 func (s *JQ) Serve(ctx context.Context) error {
-	fmt.Println("jq:", s.stage, "serving")
 	for {
 		select {
 		case m, ok := <-s.in:
-			fmt.Printf("jq: %v: received %v %v\n", s.stage, m, ok)
-			// if the input channel is closed then exit gracefully
 			if !ok {
+				// shut down gracefully if the input channel is closed
 				return nil
 			}
 			results, err := s.Query(ctx, m.Data)
-			fmt.Println("jq results", results, err)
-			// send the error, if any. otherwise send the results, if any.
+			// send the error, if any.
+			// otherwise send the results, if any.
+			// todo: send a completion token? todo: fractional tokens for input completion? wut...
 			if err != nil {
 				s.out <- m.Child(err).Out(msg.NewAddr(s.stage, "error"))
 			} else {
