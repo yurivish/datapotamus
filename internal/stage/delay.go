@@ -6,21 +6,21 @@ import (
 	"time"
 
 	"datapotamus.com/internal/msg"
-	"github.com/thejerf/suture/v4"
 )
 
 type Delay struct {
 	Base
-	duration time.Duration
+	dur time.Duration
 }
 
 type DelayConfig struct {
 	// todo: assert positive duration via validator on the config
-	Ms int64 `json:"ms"`
+	Millis int64 `json:"millis"`
 }
 
 func NewDelay(id string, cfg DelayConfig) (*Delay, error) {
-	return &Delay{Base: NewBase(id), duration: time.Duration(cfg.Ms) * time.Millisecond}, nil
+	dur := time.Duration(cfg.Millis) * time.Millisecond
+	return &Delay{Base: NewBase(id), dur: dur}, nil
 }
 
 func (s *Delay) Serve(ctx context.Context) error {
@@ -28,11 +28,12 @@ func (s *Delay) Serve(ctx context.Context) error {
 		select {
 		case m, ok := <-s.in:
 			if !ok {
-				return suture.ErrDoNotRestart // todo: *should* we restart?
+				// shut down gracefully if the input channel is closed
+				return nil
 			}
-			fmt.Println(s.id, "sleeping for", s.duration)
-			time.Sleep(s.duration)
-			s.out <- m.Child(m.Data).Out(msg.NewAddr(s.id, "out"))
+			fmt.Println(s.stage, "sleeping for", s.dur)
+			time.Sleep(s.dur)
+			s.out <- m.Child(m.Data).Out(msg.NewAddr(s.stage, "out"))
 		case <-ctx.Done():
 			return nil
 		}

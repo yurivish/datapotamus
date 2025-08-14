@@ -37,30 +37,29 @@ func NewJQ(id string, cfg JQConfig) (*JQ, error) {
 }
 
 func (s *JQ) Serve(ctx context.Context) error {
-	fmt.Println("jq:", s.id, "serving")
+	fmt.Println("jq:", s.stage, "serving")
 	for {
 		select {
 		case m, ok := <-s.in:
-			fmt.Printf("jq: %v: received %v %v\n", s.id, m, ok)
+			fmt.Printf("jq: %v: received %v %v\n", s.stage, m, ok)
 			// if the input channel is closed then exit gracefully
 			if !ok {
 				return suture.ErrDoNotRestart
 			}
 			results, err := s.Query(ctx, m.Data)
 			fmt.Println("jq results", results, err)
-			// send the error, if any
+			// send the error, if any. otherwise send the results, if any.
 			if err != nil {
-				s.out <- msg.New(err).Out(msg.NewAddr(s.id, "error"))
+				s.out <- m.Child(err).Out(msg.NewAddr(s.stage, "error"))
 			} else {
-				// otherwise send the results, if any.
 				// todo: we could send partial results even in the face of an error, or
 				// even multiple errors, if we decide that is the behavior we want.
 				for _, result := range results {
-					s.out <- msg.New(result).Out(msg.NewAddr(s.id, "out"))
+					s.out <- m.Child(result).Out(msg.NewAddr(s.stage, "out"))
 				}
 			}
 		case <-ctx.Done():
-			fmt.Printf("jq: %v: ctx done", s.id)
+			fmt.Printf("jq: %v: ctx done", s.stage)
 			return nil
 		}
 	}
@@ -89,10 +88,8 @@ func (s *JQ) Query(ctx context.Context, data any) ([]any, error) {
 			if err, ok := err.(*gojq.HaltError); ok && err.Value() == nil {
 				break
 			}
+			// note: we stop at the first error.
 			return results, err
-			// note: the error is emitted prior to successful outputs.
-			// we stop at the first error.
-			// ch <- message.PortMsg{Port: "error", Msg: message.Msg{Data: err}}
 		}
 		results = append(results, result)
 	}

@@ -35,7 +35,7 @@ func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) *
 		// do we need to close them in error cases?
 		in := make(chan msg.InMsg, 100)
 		out := make(chan msg.OutMsg, 100)
-		s.Init(stage.Config{In: in, Out: out})
+		s.Prepare(stage.Config{In: in, Out: out})
 		ins[s.ID()] = in
 		outs[s.ID()] = out
 	}

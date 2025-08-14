@@ -4,11 +4,29 @@ import (
 	"datapotamus.com/internal/common"
 )
 
+type MsgGroup struct {
+	ID        string
+	ParentIDs []string
+}
+
+func NewMsgGroup(ms []Msg) MsgGroup {
+	var ids []string
+	for _, m := range ms {
+		ids = append(ids, m.ID)
+	}
+	return MsgGroup{ID: common.NewID(), ParentIDs: ids}
+}
+
 type Msg struct {
 	Data     any
 	ID       string
 	ParentID string
 	Tokens   []Token
+	// If the parent ID of this message points to a group, this field will
+	// point to that group. This allows for provenance tracking based purely
+	// on observing message flows, since we allow only one level of grouping.
+	// Otherwise this field will be set to nil.
+	ParentGroup *MsgGroup
 }
 
 type Addr struct {
@@ -16,16 +34,16 @@ type Addr struct {
 	Port  string
 }
 
-// A message together with the stage/port address it is being emitted from.
-// Used so that the stage's out channel can specify the port of departure.
-type OutMsg struct {
+// A message together with the stage/port address it is arriving on.
+// Used so that the stage's in channel knows the port of arrival.
+type InMsg struct {
 	Msg
 	Addr
 }
 
-// A message together with the stage/port address it is arriving on.
-// Used so that the stage's in channel knows the port of arrival.
-type InMsg struct {
+// A message together with the stage/port address it is being emitted from.
+// Used so that the stage's out channel can specify the port of departure.
+type OutMsg struct {
 	Msg
 	Addr
 }
@@ -36,10 +54,11 @@ func NewAddr(stage, port string) Addr {
 	return Addr{Stage: stage, Port: port}
 }
 
-// maybe functional options for parentid/tokens and just call this New
 func New(data any) Msg {
 	return Msg{Data: data, ID: common.NewID()}
 }
+
+// AddToken? AddTokenGroup?
 
 func (m Msg) Child(data any) Msg {
 	return Msg{
@@ -50,10 +69,12 @@ func (m Msg) Child(data any) Msg {
 	}
 }
 
+// A message together with the stage/port address it is arriving on.
 func (m Msg) In(addr Addr) InMsg {
 	return InMsg{Addr: addr, Msg: m}
 }
 
+// A message together with the stage/port address it is being emitted from.
 func (m Msg) Out(addr Addr) OutMsg {
 	return OutMsg{Addr: addr, Msg: m}
 }

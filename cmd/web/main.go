@@ -21,7 +21,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	s2, err := stage.NewDelay("s2", stage.DelayConfig{Ms: 1000})
+	s2, err := stage.NewDelay("s2", stage.DelayConfig{Millis: 1000})
 
 	s3, err := stage.NewJQ("s3", stage.JQConfig{Filter: "[.]"})
 	if err != nil {
