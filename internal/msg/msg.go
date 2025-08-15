@@ -5,6 +5,8 @@ import (
 	"datapotamus.com/internal/token"
 )
 
+// todo: do we need this or can we just represent merges in the trace dag?
+// or maybe this should be a special message type or something...
 type MergeGroup struct {
 	ID        string
 	ParentIDs []string
@@ -23,12 +25,6 @@ type Msg struct {
 	ID       string
 	ParentID string
 	Tokens   token.Tokens
-	// If the parent ID of this message points to a merge group, this field
-	// points to that group. This allows for provenance tracking based purely
-	// on observing message flows, since we allow only one level of grouping,
-	// and including the group in the message allows it to be observed externally.
-	// Otherwise this field will be set to nil.
-	Parent *MergeGroup
 }
 
 type Addr struct {
