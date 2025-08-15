@@ -21,6 +21,7 @@ type Conn struct {
 // Represents a flow, which is a collection of communicating processing stages
 // connected together by a pubsub mechanism.
 type Flow struct {
+	stage.Base
 	*suture.Supervisor
 	Ready chan struct{}
 }
@@ -65,7 +66,11 @@ func NewFlow(id string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn) (
 		sv.Add(s)
 	}
 
-	return &Flow{Supervisor: sv, Ready: c.Ready}, nil
+	return &Flow{
+		Base:       stage.NewBase(id),
+		Supervisor: sv,
+		Ready:      c.Ready,
+	}, nil
 }
 
 func (f *Flow) Serve(ctx context.Context) error {

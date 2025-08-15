@@ -6,6 +6,7 @@ import (
 	"datapotamus.com/internal/msg"
 )
 
+// todo: for validation:
 // clojure async flow: No key may be present in both :ins and :outs, allowing for a uniform
 // channel coordinate system of [:process-id :channel-id]. (For us, :stage-id :port-id)
 
