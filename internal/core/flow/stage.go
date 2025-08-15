@@ -1,11 +1,11 @@
-package stage
+package flow
 
 import (
 	"context"
 	"time"
 
 	"datapotamus.com/internal/common"
-	"datapotamus.com/internal/msg"
+	"datapotamus.com/internal/core/msg"
 )
 
 // todo: for validation:
@@ -26,7 +26,7 @@ type Stage interface {
 	// Actually, as I write this, I'm realizing this is kind of an incoherent idea.
 	// Just because you're added to the supervisor doesn't mean you're actually going to start.
 	// So maybe we need a Deinit to dispose of things if Serve() never gets called?
-	Init(cfg Config)
+	Init(cfg StateConfig)
 
 	// Run the stage, returning an error in case of unexpected failure,
 	// which will restart the stage with exponential backoff.
@@ -38,7 +38,7 @@ type TraceEvent interface {
 	// Time() time.Time
 }
 
-type Config struct {
+type StateConfig struct {
 	// Channel on which the stage will receive input messages
 	In chan msg.MsgTo
 	// Channel on which the stage will send output messages
@@ -47,40 +47,39 @@ type Config struct {
 	Trace chan TraceEvent
 }
 
-// Base stage implementation that implements a subset of the Stage interface
+// StageBase stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
-type Base struct {
+type StageBase struct {
 	id    string
 	In    chan msg.MsgTo
 	Out   chan msg.MsgFrom
 	Trace chan TraceEvent
 }
 
-func NewBase(id string) Base {
+func NewStageBase(id string) StageBase {
 	// We return the struct rather than a pointer since this is quite small
 	// and very immutable and I think it makes more sense to embed the struct directly.
-	return Base{id: id}
+	return StageBase{id: id}
 }
 
-func (s *Base) ID() string {
+func (s *StageBase) ID() string {
 	return s.id
 }
 
-func (s *Base) Init(cfg Config) {
+func (s *StageBase) Init(cfg StateConfig) {
 	s.In = cfg.In
 	s.Out = cfg.Out
 	s.Trace = cfg.Trace
 }
 
 // Send message `m` on port `port`.
-func (s *Base) Send(m msg.Msg, port string) {
+func (s *StageBase) Send(m msg.Msg, port string) {
 	s.Out <- m.From(msg.NewAddr(s.id, port))
 }
 
 // Event types emitted onto stage "trace" ports
 type (
-	// a message is sent to a stage output channel
-	// recorded right before the call to s.Send
+	// recorded right before the message was sent by the stage
 	TraceSend struct {
 		Time     time.Time
 		ParentID msg.ID
@@ -94,9 +93,8 @@ type (
 		ID        msg.ID
 	}
 
-	// todo: TraceRecv to parallel send?
-	// message was received by the stage
-	TraceReceived struct {
+	// recorded right after the message was received by the stage
+	TraceRecv struct {
 		Time time.Time
 		ID   msg.ID
 	}
@@ -117,19 +115,14 @@ type (
 
 // Create a child message with the provided parent and data, and send it on the given port.
 // I think passing the zero message as the parent will do the right thing and create a root.
-func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
+func (s *StageBase) TraceSend(parent msg.Msg, data any, port string) {
 	child := parent.Child(data)
-	s.TraceEdge(parent.ID, child.ID)
+	s.Trace <- TraceSend{time.Now(), parent.ID, child.ID}
 	s.Send(child, port)
 }
 
-// Records the given parent-child edge on the "trace" port
-func (s *Base) TraceEdge(parentID, id msg.ID) {
-	s.Trace <- TraceSend{time.Now(), parentID, id}
-}
-
 // Records the given multi-parent merge edge on the "trace" port and returns its ID
-func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
+func (s *StageBase) TraceMerge(parentIDs []msg.ID) msg.ID {
 	if len(parentIDs) == 0 {
 		panic("TraceMerge: merge must have at least one parent ID")
 	}
@@ -138,14 +131,14 @@ func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
 	return id
 }
 
-func (s *Base) TraceReceived(id msg.ID) {
-	s.Trace <- TraceReceived{time.Now(), id}
+func (s *StageBase) TraceRecv(id msg.ID) {
+	s.Trace <- TraceRecv{time.Now(), id}
 }
 
-func (s *Base) TraceFailed(id msg.ID, err error) {
+func (s *StageBase) TraceFailed(id msg.ID, err error) {
 	s.Trace <- TraceFailed{time.Now(), id, err}
 }
 
-func (s *Base) TraceSucceeded(id msg.ID) {
+func (s *StageBase) TraceSucceeded(id msg.ID) {
 	s.Trace <- TraceSucceeded{time.Now(), id}
 }

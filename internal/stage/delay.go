@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"datapotamus.com/internal/core/flow"
 )
 
 type Delay struct {
-	Base
+	flow.StageBase
 	dur time.Duration
 }
 
@@ -18,18 +20,18 @@ type DelayConfig struct {
 
 func NewDelay(id string, cfg DelayConfig) (*Delay, error) {
 	dur := time.Duration(cfg.Millis) * time.Millisecond
-	return &Delay{Base: NewBase(id), dur: dur}, nil
+	return &Delay{StageBase: flow.NewStageBase(id), dur: dur}, nil
 }
 
 func (s *Delay) Serve(ctx context.Context) error {
 	for {
 		select {
 		case m, ok := <-s.In:
-			s.TraceReceived(m.ID)
+			s.TraceRecv(m.ID)
 			if !ok {
 				return nil
 			}
-			fmt.Println(s.id, "sleeping for", s.dur)
+			fmt.Println(s.ID(), "sleeping for", s.dur)
 			time.Sleep(s.dur)
 			// Send a child message with the same data (but a new ID)
 			s.TraceSend(m.Msg, m.Data, "out")

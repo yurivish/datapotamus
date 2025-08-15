@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"datapotamus.com/internal/msg"
-	"datapotamus.com/internal/pubsub"
-	"datapotamus.com/internal/stage"
-	"datapotamus.com/internal/sublist"
+	"datapotamus.com/internal/core/msg"
+	"datapotamus.com/internal/core/pubsub"
+	"datapotamus.com/internal/core/sublist"
 )
 
 // The coordinator is a suture Service that connects flow stages to each other through pubsub.
@@ -20,13 +19,14 @@ type coordinator struct {
 	ps     *pubsub.PubSub
 
 	// Connections between stages
-	conns []Conn
+	stageConns []Conn
+
 	// Channel on which the flow receives input messages
 	flowIn <-chan msg.MsgTo
 	// Channel on which the flow sends output messages
 	flowOut chan<- msg.MsgFrom
 	// Channel on which the flow sends trace events
-	flowTrace chan<- stage.TraceEvent
+	flowTrace chan<- TraceEvent
 
 	// Connections that expose internal stage ports as flow outputs.
 	// The From field specifies the (stage, port) inside the flow and
@@ -40,12 +40,12 @@ type coordinator struct {
 	// Map from stage ID to output channel for that stage
 	stageOuts map[string]chan msg.MsgFrom
 	// Map from stage ID to trace channel for that stage
-	stageTraces map[string]chan stage.TraceEvent
+	stageTraces map[string]chan TraceEvent
 }
 
 func (c *coordinator) Serve(ctx context.Context) error {
 	// Connect stage output subjects to input channels
-	for _, conn := range c.conns {
+	for _, conn := range c.stageConns {
 		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, conn.From.Stage, conn.From.Port)
 		in := c.stageIns[conn.To.Stage]
 		defer pubsub.Sub(c.ps, subj, func(subj string, m msg.Msg) {
@@ -98,7 +98,7 @@ func (c *coordinator) Serve(ctx context.Context) error {
 		wg.Go(func() {
 			defer wg.Done()
 			for e := range trace {
-				fmt.Println("coord: got trace: %#v", e)
+				fmt.Printf("coord: got trace: %#v\n", e)
 				c.flowTrace <- e
 			}
 		})

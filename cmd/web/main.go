@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"datapotamus.com/internal/flow"
-	"datapotamus.com/internal/msg"
-	"datapotamus.com/internal/pubsub"
+	"datapotamus.com/internal/core/flow"
+	"datapotamus.com/internal/core/msg"
+	"datapotamus.com/internal/core/pubsub"
 	"datapotamus.com/internal/stage"
 	"github.com/thejerf/suture/v4"
 )
@@ -32,7 +32,7 @@ func main() {
 	f, err := flow.NewFlow(
 		"flow1",
 		ps,
-		[]stage.Stage{s1, s2, s3},
+		[]flow.Stage{s1, s2, s3},
 		[]flow.Conn{
 			{From: msg.NewAddr("s1", "out"), To: msg.NewAddr("s2", "in")},
 			{From: msg.NewAddr("s2", "out"), To: msg.NewAddr("s3", "in")},
@@ -41,10 +41,10 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}
-	f.Init(stage.Config{
+	f.Init(flow.StateConfig{
 		In:    make(chan msg.MsgTo, 100),
 		Out:   make(chan msg.MsgFrom, 100),
-		Trace: make(chan stage.TraceEvent, 100),
+		Trace: make(chan flow.TraceEvent, 100),
 	})
 	super.Add(f)
 	ctx := context.Background()

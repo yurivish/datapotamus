@@ -5,7 +5,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"datapotamus.com/internal/msg"
+	"datapotamus.com/internal/core/flow"
+	"datapotamus.com/internal/core/msg"
 )
 
 // todo
@@ -29,7 +30,7 @@ func testDelayStageWithDuration(t *testing.T, millis int64) {
 	// Create channels for communication
 	in := make(chan msg.MsgTo, 1)
 	out := make(chan msg.MsgFrom, 1)
-	delay.Init(Config{In: in, Out: out})
+	delay.Init(flow.StateConfig{In: in, Out: out})
 
 	ctx := t.Context()
 	errCh := make(chan error, 1)

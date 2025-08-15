@@ -2,7 +2,7 @@ package msg
 
 import (
 	"datapotamus.com/internal/common"
-	"datapotamus.com/internal/token"
+	"datapotamus.com/internal/core/token"
 )
 
 type ID string

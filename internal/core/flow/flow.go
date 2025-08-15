@@ -5,24 +5,23 @@ import (
 	"errors"
 	"fmt"
 
-	"datapotamus.com/internal/msg"
-	"datapotamus.com/internal/pubsub"
-	"datapotamus.com/internal/stage"
+	"datapotamus.com/internal/core/msg"
+	"datapotamus.com/internal/core/pubsub"
 	"github.com/thejerf/suture/v4"
 )
 
 // A Flow is a collection of processing stages connected together by a coordinator.
 type Flow struct {
 	// A flow is a stage
-	stage.Base
+	StageBase
 
 	// A flow is both a service and a supervisor of
 	// individual stages and the coordinator.
 	*suture.Supervisor
 
-	ps     *pubsub.PubSub
-	stages []stage.Stage
-	conns  []Conn
+	ps         *pubsub.PubSub
+	stages     []Stage
+	stageConns []Conn
 	// Stage output ports that are also flow output ports.
 	// The `From` field specifies the flow-internal stage/port address
 	// and the `To` field specifies how to present that to the outside world.
@@ -32,7 +31,7 @@ type Flow struct {
 
 	stageIns    map[string]chan msg.MsgTo
 	stageOuts   map[string]chan msg.MsgFrom
-	stageTraces map[string]chan stage.TraceEvent
+	stageTraces map[string]chan TraceEvent
 }
 
 // Conn represents a directed connection between two addresses.
@@ -44,23 +43,23 @@ func SelfConn(addr msg.Addr) Conn {
 	return Conn{From: addr, To: addr}
 }
 
-func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Conn, outputs []Conn) (*Flow, error) {
+func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, flowOutputs []Conn) (*Flow, error) {
 	sv := suture.NewSimple(flowID)
 
 	// Create maps from stage ID to input and output channel
 	stageIns := map[string]chan msg.MsgTo{}
 	stageOuts := map[string]chan msg.MsgFrom{}
-	stageTraces := map[string]chan stage.TraceEvent{}
+	stageTraces := map[string]chan TraceEvent{}
 
 	for _, s := range stages {
 		stageID := s.ID()
 		stageIns[stageID] = make(chan msg.MsgTo, 100)
 		stageOuts[stageID] = make(chan msg.MsgFrom, 100)
-		stageTraces[stageID] = make(chan stage.TraceEvent, 100)
+		stageTraces[stageID] = make(chan TraceEvent, 100)
 	}
 
 	// Validate that all connection stages exist. We do not yet validate ports.
-	for _, conn := range conns {
+	for _, conn := range stageConns {
 		if _, ok := stageIns[conn.From.Stage]; !ok {
 			return nil, fmt.Errorf("flow: 'from' stage does not exist: %v", conn.From)
 		}
@@ -71,7 +70,7 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 
 	for _, s := range stages {
 		stageID := s.ID()
-		s.Init(stage.Config{
+		s.Init(StateConfig{
 			In:    stageIns[stageID],
 			Out:   stageOuts[stageID],
 			Trace: stageTraces[stageID],
@@ -80,13 +79,13 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 	}
 
 	return &Flow{
-		Base:       stage.NewBase(flowID),
+		StageBase:  NewStageBase(flowID),
 		Supervisor: sv,
 
-		ps:      ps,
-		stages:  stages,
-		conns:   conns,
-		outputs: outputs,
+		ps:         ps,
+		stages:     stages,
+		stageConns: stageConns,
+		outputs:    flowOutputs,
 
 		stageIns:    stageIns,
 		stageOuts:   stageOuts,
@@ -94,15 +93,15 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 	}, nil
 }
 
-func (f *Flow) Init(cfg stage.Config) {
-	f.Base.Init(cfg)
+func (f *Flow) Init(cfg StateConfig) {
+	f.StageBase.Init(cfg)
 
 	// Create a coordinator service to coordinate message
 	// delivery between the flow and its stages.
 	c := coordinator{
-		flowID: f.ID(),
-		ps:     f.ps,
-		conns:  f.conns,
+		flowID:     f.ID(),
+		ps:         f.ps,
+		stageConns: f.stageConns,
 
 		flowIn:    f.In,
 		flowOut:   f.Out,

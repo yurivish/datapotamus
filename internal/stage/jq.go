@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"datapotamus.com/internal/core/flow"
 	"github.com/itchyny/gojq"
 )
 
 // todo: where if anywhere should we use suture.ErrTerminateSupervisorTree to fail the whole flow on unexpected errors?
 
 type JQ struct {
-	Base
+	flow.StageBase
 	code    *gojq.Code
 	timeout time.Duration
 }
@@ -34,7 +35,7 @@ func NewJQ(id string, cfg JQConfig) (*JQ, error) {
 		return nil, fmt.Errorf("jq: failed to compile filter: %w", err)
 	}
 	timeout := time.Duration(cfg.TimeoutMillis) * time.Millisecond
-	return &JQ{Base: NewBase(id), code: code, timeout: timeout}, nil
+	return &JQ{StageBase: flow.NewStageBase(id), code: code, timeout: timeout}, nil
 }
 
 func (s *JQ) Serve(ctx context.Context) error {
@@ -46,7 +47,7 @@ func (s *JQ) Serve(ctx context.Context) error {
 				return nil
 			}
 			fmt.Println("jq pre received")
-			s.TraceReceived(m.ID)
+			s.TraceRecv(m.ID)
 			fmt.Println("jq received")
 			results, err := s.Query(ctx, m.Data)
 			if err != nil {
@@ -64,7 +65,7 @@ func (s *JQ) Serve(ctx context.Context) error {
 				// s.Send(msg.NewWithID(id, ...), "out")
 			}
 		case <-ctx.Done():
-			fmt.Printf("jq: %v: ctx done", s.id)
+			fmt.Printf("jq: %v: ctx done", s.ID())
 			return nil
 		}
 	}
