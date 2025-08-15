@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"time"
-
-	"datapotamus.com/internal/msg"
 )
 
 type Delay struct {
@@ -27,19 +25,17 @@ func (s *Delay) Serve(ctx context.Context) error {
 	for {
 		select {
 		case m, ok := <-s.In:
+			s.TraceReceived(m.ID)
 			if !ok {
 				return nil
 			}
 			fmt.Println(s.id, "sleeping for", s.dur)
 			time.Sleep(s.dur)
-			s.Send(m.Child(m.Data), "out")
-			s.Send(msg.New(Completed(m.ID)), "trace")
+			// Send a child message with the same data (but a new ID)
+			s.SendChild(m.Msg, m.Data, "out")
+			s.TraceSucceeded(m.ID)
 		case <-ctx.Done():
 			return nil
 		}
 	}
 }
-
-// messageid
-type Completed string
-type Failed string

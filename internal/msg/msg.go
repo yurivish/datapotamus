@@ -5,23 +5,10 @@ import (
 	"datapotamus.com/internal/token"
 )
 
-// todo: do we need this or can we just represent merges in the trace dag?
-// or maybe this should be a special message type or something...
-type MergeGroup struct {
-	ID        string
-	ParentIDs []string
-}
-
-func Merge(ms []Msg) MergeGroup {
-	var ids []string
-	for _, m := range ms {
-		ids = append(ids, m.ID)
-	}
-	return MergeGroup{ID: common.NewID(), ParentIDs: ids}
-}
+type ID string
 
 type Msg struct {
-	ID     string
+	ID     ID
 	Data   any
 	Tokens token.Tokens
 }
@@ -50,14 +37,18 @@ func NewAddr(stage, port string) Addr {
 }
 
 func New(data any) Msg {
-	return Msg{Data: data, ID: common.NewID()}
+	return Msg{Data: data, ID: ID(common.NewID())}
+}
+
+func NewWithID(id ID, data any) Msg {
+	return Msg{Data: data, ID: id}
 }
 
 // Returns a new message that is a child of the parent message.
 func (m Msg) Child(data any) Msg {
 	return Msg{
 		Data:   data,
-		ID:     common.NewID(),
+		ID:     ID(common.NewID()),
 		Tokens: m.Tokens,
 	}
 }

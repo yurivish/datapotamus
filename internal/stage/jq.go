@@ -45,19 +45,21 @@ func (s *JQ) Serve(ctx context.Context) error {
 				// shut down gracefully if the input channel is closed
 				return nil
 			}
-			fmt.Println("jq: got m:", m)
+			s.TraceReceived(m.ID)
 			results, err := s.Query(ctx, m.Data)
-			// send the error, if any.
-			// otherwise send the results, if any.
-			// todo: send a completion token? todo: fractional tokens for input completion? wut...
 			if err != nil {
-				s.Send(m.Child(err), "error")
+				// send the error
+				s.TraceFailed(m.ID, err)
 			} else {
-				// todo: we could send partial results even in the face of an error, or
-				// even multiple errors, if we decide that is the behavior we want.
+				// send the results
 				for _, result := range results {
-					s.Send(m.Child(result), "out")
+					s.SendChild(m.Msg, result, "out")
 				}
+				s.TraceSucceeded(m.ID)
+
+				// for merge nodes:
+				// id := s.TraceMerge(...)
+				// s.Send(msg.NewWithID(id, ...), "out")
 			}
 		case <-ctx.Done():
 			fmt.Printf("jq: %v: ctx done", s.id)

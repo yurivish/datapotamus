@@ -143,14 +143,6 @@ func (d *DAG) CreateMergeNode(parentIDs []string, id string) {
 		if parent == nil {
 			panic(fmt.Sprintf("Node %s must exist before creating merge node", nodeID))
 		}
-		if len(parent.Parents) > 1 {
-			// To make tracing easy, we only allow one level of merge node -- a message parent id
-			// Either refers to another message ID or to a merge node ID representing the merge of
-			// messages (not other merges).
-			// (The way this makes tracing easy is that it enables us to see all of the information
-			// we need to construct the trace tree by observing stage output channels.)
-			panic(fmt.Sprintf("Node %s cannot be the parent of a merge node for it itself must be a merge node (it has multiple parents)", nodeID))
-		}
 	}
 
 	// Create merge node and add edges

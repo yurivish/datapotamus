@@ -3,6 +3,7 @@ package stage
 import (
 	"context"
 
+	"datapotamus.com/internal/common"
 	"datapotamus.com/internal/msg"
 )
 
@@ -52,11 +53,69 @@ func (s *Base) Init(cfg Config) {
 	s.Out = cfg.Out
 }
 
+// Send message `m` on port `port`.
 func (s *Base) Send(m msg.Msg, port string) {
 	s.Out <- m.Out(msg.NewAddr(s.id, port))
 }
-func (s *Base) SendChild(parent msg.Msg, data any, port string) {
-	m := parent.Child(data)
-	s.Send(msg.New([]string{parent.ID, m.ID}), "trace") // send edge
+
+// Create a child message with the provided parent and data, and send it on the given port.
+func (s *Base) SendChild(p msg.Msg, data any, port string) {
+	m := p.Child(data)
+	s.TraceEdge(p.ID, m.ID)
 	s.Send(m, port)
+}
+
+// Send a message with the given data to the trace port.
+func (s *Base) Trace(data any) {
+	s.Send(msg.New(data), "trace")
+}
+
+type (
+	TraceEdge struct {
+		ParentID msg.ID
+		ID       msg.ID
+	}
+	TraceMerge struct {
+		ParentIDs []msg.ID
+		ID        msg.ID
+	}
+
+	// message was received by the stage
+	TraceReceived msg.ID
+
+	// messages successfully processed
+	TraceSucceeded msg.ID
+
+	// message processing failed. may include retry/snooze params here later.
+	TraceFailed struct {
+		ID    msg.ID
+		Error error
+	}
+)
+
+// Records the given parent-child edge on the trace port.
+func (s *Base) TraceEdge(parentID, id msg.ID) {
+	s.Trace(TraceEdge{parentID, id})
+}
+
+// Records the given multi-parent merge edge on the trace port.
+func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
+	if len(parentIDs) == 0 {
+		panic("TraceMerge: merge must have at least one parent ID")
+	}
+	id := msg.ID(common.NewID())
+	s.Trace(TraceMerge{parentIDs, id})
+	return id
+}
+
+func (s *Base) TraceReceived(id msg.ID) {
+	s.Trace(TraceReceived(id))
+}
+
+func (s *Base) TraceFailed(id msg.ID, err error) {
+	s.Trace(TraceFailed{ID: id, Error: err})
+}
+
+func (s *Base) TraceSucceeded(id msg.ID) {
+	s.Trace(TraceSucceeded(id))
 }
