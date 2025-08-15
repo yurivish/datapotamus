@@ -26,7 +26,7 @@ type Stage interface {
 	// Actually, as I write this, I'm realizing this is kind of an incoherent idea.
 	// Just because you're added to the supervisor doesn't mean you're actually going to start.
 	// So maybe we need a Deinit to dispose of things if Serve() never gets called?
-	Init(cfg StateConfig)
+	Init(cfg StageConfig)
 
 	// Run the stage, returning an error in case of unexpected failure,
 	// which will restart the stage with exponential backoff.
@@ -38,7 +38,7 @@ type TraceEvent interface {
 	// Time() time.Time
 }
 
-type StateConfig struct {
+type StageConfig struct {
 	// Channel on which the stage will receive input messages
 	In chan msg.MsgTo
 	// Channel on which the stage will send output messages
@@ -50,10 +50,8 @@ type StateConfig struct {
 // StageBase stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
 type StageBase struct {
-	id    string
-	In    chan msg.MsgTo
-	Out   chan msg.MsgFrom
-	Trace chan TraceEvent
+	id string
+	StageConfig
 }
 
 func NewStageBase(id string) StageBase {
@@ -66,10 +64,8 @@ func (s *StageBase) ID() string {
 	return s.id
 }
 
-func (s *StageBase) Init(cfg StateConfig) {
-	s.In = cfg.In
-	s.Out = cfg.Out
-	s.Trace = cfg.Trace
+func (s *StageBase) Init(cfg StageConfig) {
+	s.StageConfig = cfg
 }
 
 // Send message `m` on port `port`.

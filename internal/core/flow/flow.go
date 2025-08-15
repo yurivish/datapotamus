@@ -70,7 +70,7 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 
 	for _, s := range stages {
 		stageID := s.ID()
-		s.Init(StateConfig{
+		s.Init(StageConfig{
 			In:    stageIns[stageID],
 			Out:   stageOuts[stageID],
 			Trace: stageTraces[stageID],
@@ -93,7 +93,7 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 	}, nil
 }
 
-func (f *Flow) Init(cfg StateConfig) {
+func (f *Flow) Init(cfg StageConfig) {
 	f.StageBase.Init(cfg)
 
 	// Create a coordinator service to coordinate message

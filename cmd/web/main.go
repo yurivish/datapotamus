@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}
-	f.Init(flow.StateConfig{
+	f.Init(flow.StageConfig{
 		In:    make(chan msg.MsgTo, 100),
 		Out:   make(chan msg.MsgFrom, 100),
 		Trace: make(chan flow.TraceEvent, 100),
