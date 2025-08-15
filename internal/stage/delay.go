@@ -28,14 +28,18 @@ func (s *Delay) Serve(ctx context.Context) error {
 		select {
 		case m, ok := <-s.In:
 			if !ok {
-				// shut down gracefully if the input channel is closed
 				return nil
 			}
 			fmt.Println(s.id, "sleeping for", s.dur)
 			time.Sleep(s.dur)
-			s.Out <- m.Child(m.Data).Out(msg.NewAddr(s.id, "out"))
+			s.Send(m.Child(m.Data), "out")
+			s.Send(msg.New(Completed(m.ID)), "trace")
 		case <-ctx.Done():
 			return nil
 		}
 	}
 }
+
+// messageid
+type Completed string
+type Failed string

@@ -29,11 +29,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	f, err := flow.NewFlow("flow1", ps, []stage.Stage{s1, s2, s3}, []flow.Conn{
-		{From: msg.NewAddr("s1", "out"), To: msg.NewAddr("s2", "in")},
-		{From: msg.NewAddr("s2", "out"), To: msg.NewAddr("s3", "in")},
-		// {From: msg.NewAddr("outside", "input"), To: msg.NewAddr("s1", "in")},
-	}, []flow.Conn{flow.IdentityConn(msg.NewAddr("s3", "out"))})
+	f, err := flow.NewFlow(
+		"flow1",
+		ps,
+		[]stage.Stage{s1, s2, s3},
+		[]flow.Conn{
+			{From: msg.NewAddr("s1", "out"), To: msg.NewAddr("s2", "in")},
+			{From: msg.NewAddr("s2", "out"), To: msg.NewAddr("s3", "in")},
+		},
+		[]flow.Conn{flow.SelfConn(msg.NewAddr("s3", "out"))})
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}

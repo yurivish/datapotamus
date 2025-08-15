@@ -39,9 +39,8 @@ func (c *coordinator) Serve(ctx context.Context) error {
 	// Connect stage output subjects to input channels
 	for _, conn := range c.conns {
 		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, conn.From.Stage, conn.From.Port)
+		in := c.stageIns[conn.To.Stage]
 		defer pubsub.Sub(c.ps, subj, func(subj string, m msg.Msg) {
-			fmt.Println("received stage message:", m)
-			in := c.stageIns[conn.To.Stage] // all ports share the same in channel
 			in <- m.In(conn.To)
 		})()
 	}
@@ -66,7 +65,6 @@ func (c *coordinator) Serve(ctx context.Context) error {
 			defer wg.Done()
 			for m := range out {
 				subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, m.Stage, m.Port)
-				fmt.Println("got stage out", m, "sending to", subj)
 				pubsub.Pub(c.ps, subj, m.Msg)
 			}
 		})
@@ -77,7 +75,6 @@ func (c *coordinator) Serve(ctx context.Context) error {
 	wg.Go(func() {
 		defer wg.Done()
 		for m := range c.flowIn {
-			fmt.Println("received flow in:", m, "sending to stage", c.stageIns[m.Stage])
 			c.stageIns[m.Stage] <- m
 		}
 	})

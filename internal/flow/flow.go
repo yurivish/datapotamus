@@ -37,9 +37,9 @@ type Flow struct {
 // Conn represents a directed connection between two addresses.
 type Conn struct{ From, To msg.Addr }
 
-// A connection from an address to itself.
-// Useful for exposing stage outputs as flow outputs with the same stage and port.
-func IdentityConn(addr msg.Addr) Conn {
+// A connection from an address to itself, often used to expose
+// a stage output as a flow output with the same address.
+func SelfConn(addr msg.Addr) Conn {
 	return Conn{From: addr, To: addr}
 }
 

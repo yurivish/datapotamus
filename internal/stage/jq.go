@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"datapotamus.com/internal/msg"
 	"github.com/itchyny/gojq"
 )
 
@@ -52,12 +51,12 @@ func (s *JQ) Serve(ctx context.Context) error {
 			// otherwise send the results, if any.
 			// todo: send a completion token? todo: fractional tokens for input completion? wut...
 			if err != nil {
-				s.Out <- m.Child(err).Out(msg.NewAddr(s.id, "error"))
+				s.Send(m.Child(err), "error")
 			} else {
 				// todo: we could send partial results even in the face of an error, or
 				// even multiple errors, if we decide that is the behavior we want.
 				for _, result := range results {
-					s.Out <- m.Child(result).Out(msg.NewAddr(s.id, "out"))
+					s.Send(m.Child(result), "out")
 				}
 			}
 		case <-ctx.Done():

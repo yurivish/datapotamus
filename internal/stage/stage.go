@@ -51,3 +51,12 @@ func (s *Base) Init(cfg Config) {
 	s.In = cfg.In
 	s.Out = cfg.Out
 }
+
+func (s *Base) Send(m msg.Msg, port string) {
+	s.Out <- m.Out(msg.NewAddr(s.id, port))
+}
+func (s *Base) SendChild(parent msg.Msg, data any, port string) {
+	m := parent.Child(data)
+	s.Send(msg.New([]string{parent.ID, m.ID}), "trace") // send edge
+	s.Send(m, port)
+}
