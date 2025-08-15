@@ -34,19 +34,26 @@ type Stage interface {
 	Serve(ctx context.Context) error
 }
 
+type TraceEvent interface {
+	// Time() time.Time
+}
+
 type Config struct {
 	// Channel on which the stage will receive input messages
 	In chan msg.MsgTo
 	// Channel on which the stage will send output messages
 	Out chan msg.MsgFrom
+	// Channel on which the stage will send trace events
+	Trace chan TraceEvent
 }
 
 // Base stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
 type Base struct {
-	id  string
-	In  chan msg.MsgTo
-	Out chan msg.MsgFrom
+	id    string
+	In    chan msg.MsgTo
+	Out   chan msg.MsgFrom
+	Trace chan TraceEvent
 }
 
 func NewBase(id string) Base {
@@ -62,6 +69,7 @@ func (s *Base) ID() string {
 func (s *Base) Init(cfg Config) {
 	s.In = cfg.In
 	s.Out = cfg.Out
+	s.Trace = cfg.Trace
 }
 
 // Send message `m` on port `port`.
@@ -107,11 +115,6 @@ type (
 	}
 )
 
-// Send a message with the given data to the "trace" port
-func (s *Base) Trace(data any) {
-	s.Send(msg.New(data), "trace")
-}
-
 // Create a child message with the provided parent and data, and send it on the given port.
 // I think passing the zero message as the parent will do the right thing and create a root.
 func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
@@ -122,7 +125,7 @@ func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
 
 // Records the given parent-child edge on the "trace" port
 func (s *Base) TraceEdge(parentID, id msg.ID) {
-	s.Trace(TraceSend{time.Now(), parentID, id})
+	s.Trace <- TraceSend{time.Now(), parentID, id}
 }
 
 // Records the given multi-parent merge edge on the "trace" port and returns its ID
@@ -131,18 +134,18 @@ func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
 		panic("TraceMerge: merge must have at least one parent ID")
 	}
 	id := msg.ID(common.NewID())
-	s.Trace(TraceMerge{time.Now(), parentIDs, id})
+	s.Trace <- TraceMerge{time.Now(), parentIDs, id}
 	return id
 }
 
 func (s *Base) TraceReceived(id msg.ID) {
-	s.Trace(TraceReceived{time.Now(), id})
+	s.Trace <- TraceReceived{time.Now(), id}
 }
 
 func (s *Base) TraceFailed(id msg.ID, err error) {
-	s.Trace(TraceFailed{time.Now(), id, err})
+	s.Trace <- TraceFailed{time.Now(), id, err}
 }
 
 func (s *Base) TraceSucceeded(id msg.ID) {
-	s.Trace(TraceSucceeded{time.Now(), id})
+	s.Trace <- TraceSucceeded{time.Now(), id}
 }

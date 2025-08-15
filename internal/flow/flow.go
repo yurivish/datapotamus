@@ -30,8 +30,9 @@ type Flow struct {
 	// will be mirrored in the output from on flow.Out.
 	outputs []Conn
 
-	stageIns  map[string]chan msg.MsgTo
-	stageOuts map[string]chan msg.MsgFrom
+	stageIns    map[string]chan msg.MsgTo
+	stageOuts   map[string]chan msg.MsgFrom
+	stageTraces map[string]chan stage.TraceEvent
 }
 
 // Conn represents a directed connection between two addresses.
@@ -49,13 +50,13 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 	// Create maps from stage ID to input and output channel
 	stageIns := map[string]chan msg.MsgTo{}
 	stageOuts := map[string]chan msg.MsgFrom{}
+	stageTraces := map[string]chan stage.TraceEvent{}
 
 	for _, s := range stages {
-		in := make(chan msg.MsgTo, 100)
-		out := make(chan msg.MsgFrom, 100)
 		stageID := s.ID()
-		stageIns[stageID] = in
-		stageOuts[stageID] = out
+		stageIns[stageID] = make(chan msg.MsgTo, 100)
+		stageOuts[stageID] = make(chan msg.MsgFrom, 100)
+		stageTraces[stageID] = make(chan stage.TraceEvent, 100)
 	}
 
 	// Validate that all connection stages exist. We do not yet validate ports.
@@ -70,7 +71,11 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 
 	for _, s := range stages {
 		stageID := s.ID()
-		s.Init(stage.Config{In: stageIns[stageID], Out: stageOuts[stageID]})
+		s.Init(stage.Config{
+			In:    stageIns[stageID],
+			Out:   stageOuts[stageID],
+			Trace: stageTraces[stageID],
+		})
 		sv.Add(s)
 	}
 
@@ -83,8 +88,9 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 		conns:   conns,
 		outputs: outputs,
 
-		stageIns:  stageIns,
-		stageOuts: stageOuts,
+		stageIns:    stageIns,
+		stageOuts:   stageOuts,
+		stageTraces: stageTraces,
 	}, nil
 }
 
@@ -98,12 +104,15 @@ func (f *Flow) Init(cfg stage.Config) {
 		ps:     f.ps,
 		conns:  f.conns,
 
-		flowIn:      f.In,
-		flowOut:     f.Out,
+		flowIn:    f.In,
+		flowOut:   f.Out,
+		flowTrace: f.Trace,
+
 		flowOutputs: f.outputs,
 
-		stageIns:  f.stageIns,
-		stageOuts: f.stageOuts,
+		stageIns:    f.stageIns,
+		stageOuts:   f.stageOuts,
+		stageTraces: f.stageTraces,
 	}
 
 	// The coordinator is treated as another service, alongside the stages.

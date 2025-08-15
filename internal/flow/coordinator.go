@@ -7,6 +7,7 @@ import (
 
 	"datapotamus.com/internal/msg"
 	"datapotamus.com/internal/pubsub"
+	"datapotamus.com/internal/stage"
 	"datapotamus.com/internal/sublist"
 )
 
@@ -24,16 +25,22 @@ type coordinator struct {
 	flowIn <-chan msg.MsgTo
 	// Channel on which the flow sends output messages
 	flowOut chan<- msg.MsgFrom
+	// Channel on which the flow sends trace events
+	flowTrace chan<- stage.TraceEvent
+
 	// Connections that expose internal stage ports as flow outputs.
 	// The From field specifies the (stage, port) inside the flow and
 	// the To field specifies the external name and port on the flow,
 	// allowing us to decouple the internal stage structure from the
 	// stages and ports presented by this flow to the outside world.
 	flowOutputs []Conn
+
 	// Map from stage ID to input channel for that stage
 	stageIns map[string]chan msg.MsgTo
 	// Map from stage ID to output channel for that stage
 	stageOuts map[string]chan msg.MsgFrom
+	// Map from stage ID to trace channel for that stage
+	stageTraces map[string]chan stage.TraceEvent
 }
 
 func (c *coordinator) Serve(ctx context.Context) error {
@@ -87,6 +94,16 @@ func (c *coordinator) Serve(ctx context.Context) error {
 		})
 	}
 
+	for _, trace := range c.stageTraces {
+		wg.Go(func() {
+			defer wg.Done()
+			for e := range trace {
+				fmt.Println("coord: got trace: %#v", e)
+				c.flowTrace <- e
+			}
+		})
+	}
+
 	// Launch a goroutine to publish flow input messages to the appropriate stage subject
 	// Note that this has to happen before the connections are wired up (above).
 	wg.Go(func() {
@@ -105,6 +122,11 @@ func (c *coordinator) Serve(ctx context.Context) error {
 
 		// Close stage outputs
 		for _, ch := range c.stageOuts {
+			close(ch)
+		}
+
+		// Close stage traces
+		for _, ch := range c.stageTraces {
 			close(ch)
 		}
 

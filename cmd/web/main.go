@@ -42,8 +42,9 @@ func main() {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}
 	f.Init(stage.Config{
-		In:  make(chan msg.MsgTo, 100),
-		Out: make(chan msg.MsgFrom, 100),
+		In:    make(chan msg.MsgTo, 100),
+		Out:   make(chan msg.MsgFrom, 100),
+		Trace: make(chan stage.TraceEvent, 100),
 	})
 	super.Add(f)
 	ctx := context.Background()
@@ -63,16 +64,23 @@ loop:
 			if !ok {
 				break loop
 			}
-			fmt.Println(m)
+			fmt.Println("out:", m)
+
+		case e, ok := <-f.Trace:
+			if !ok {
+				break loop
+			}
+			fmt.Println("trace:", e)
 
 		case <-time.After(3 * time.Second):
+			fmt.Println("done w loop due to timeout")
+			break loop
+
 		case <-ctx.Done():
+			fmt.Println("done w loop due to ctx done")
 			break loop
 		}
 	}
 
-	// go func() {	super.Serve(context.Background()) }
-	//
-	//
 	fmt.Println("woopydoo")
 }

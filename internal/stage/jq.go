@@ -45,7 +45,9 @@ func (s *JQ) Serve(ctx context.Context) error {
 				// shut down gracefully if the input channel is closed
 				return nil
 			}
+			fmt.Println("jq pre received")
 			s.TraceReceived(m.ID)
+			fmt.Println("jq received")
 			results, err := s.Query(ctx, m.Data)
 			if err != nil {
 				// send the error
