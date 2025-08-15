@@ -23,6 +23,9 @@ type JQConfig struct {
 }
 
 func NewJQ(id string, cfg JQConfig) (*JQ, error) {
+	if cfg.TimeoutMillis == 0 {
+		return nil, fmt.Errorf("jq config: TimeoutMillis should be greater than zero")
+	}
 	query, err := gojq.Parse(cfg.Filter)
 	if err != nil {
 		return nil, fmt.Errorf("jq: failed to parse filter: %w", err)
@@ -43,6 +46,7 @@ func (s *JQ) Serve(ctx context.Context) error {
 				// shut down gracefully if the input channel is closed
 				return nil
 			}
+			fmt.Println("jq: got m:", m)
 			results, err := s.Query(ctx, m.Data)
 			// send the error, if any.
 			// otherwise send the results, if any.

@@ -14,7 +14,7 @@ type Stage interface {
 	ID() string // an ID / name for the stage, which has to be unique within its flow
 
 	// Called once prior to Serve being called.
-	Prepare(cfg Config)
+	Init(cfg Config)
 
 	// Run the stage, returning an error in case of unexpected failure,
 	// which will restart the stage with exponential backoff.
@@ -24,17 +24,17 @@ type Stage interface {
 
 type Config struct {
 	// Channel on which the stage will receive input messages
-	In <-chan msg.InMsg
+	In chan msg.InMsg
 	// Channel on which the stage will send output messages
-	Out chan<- msg.OutMsg
+	Out chan msg.OutMsg
 }
 
 // Base stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
 type Base struct {
 	id  string
-	In  <-chan msg.InMsg
-	Out chan<- msg.OutMsg
+	In  chan msg.InMsg
+	Out chan msg.OutMsg
 }
 
 func NewBase(id string) Base {
@@ -47,7 +47,7 @@ func (s *Base) ID() string {
 	return s.id
 }
 
-func (s *Base) Prepare(cfg Config) {
+func (s *Base) Init(cfg Config) {
 	s.In = cfg.In
 	s.Out = cfg.Out
 }
