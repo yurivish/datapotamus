@@ -2,6 +2,7 @@ package stage
 
 import (
 	"context"
+	"time"
 
 	"datapotamus.com/internal/common"
 	"datapotamus.com/internal/msg"
@@ -25,17 +26,17 @@ type Stage interface {
 
 type Config struct {
 	// Channel on which the stage will receive input messages
-	In chan msg.InMsg
+	In chan msg.MsgTo
 	// Channel on which the stage will send output messages
-	Out chan msg.OutMsg
+	Out chan msg.MsgFrom
 }
 
 // Base stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
 type Base struct {
 	id  string
-	In  chan msg.InMsg
-	Out chan msg.OutMsg
+	In  chan msg.MsgTo
+	Out chan msg.MsgFrom
 }
 
 func NewBase(id string) Base {
@@ -55,32 +56,39 @@ func (s *Base) Init(cfg Config) {
 
 // Send message `m` on port `port`.
 func (s *Base) Send(m msg.Msg, port string) {
-	s.Out <- m.Out(msg.NewAddr(s.id, port))
+	s.Out <- m.From(msg.NewAddr(s.id, port))
 }
 
 // Event types emitted onto stage "trace" ports
 type (
-	TraceEdge struct {
+	TraceSend struct {
+		// The time right before the message is enqueued onto the Out channel for the stage
+		Time     time.Time
 		ParentID msg.ID
 		ID       msg.ID
 	}
+
 	TraceMerge struct {
+		Time      time.Time
 		ParentIDs []msg.ID
 		ID        msg.ID
 	}
 
 	// message was received by the stage
 	TraceReceived struct {
-		ID msg.ID
+		Time time.Time
+		ID   msg.ID
 	}
 
 	// messages successfully processed
 	TraceSucceeded struct {
-		ID msg.ID
+		Time time.Time
+		ID   msg.ID
 	}
 
 	// message processing failed. may include retry/snooze params here later.
 	TraceFailed struct {
+		Time  time.Time
 		ID    msg.ID
 		Error error
 	}
@@ -92,6 +100,7 @@ func (s *Base) Trace(data any) {
 }
 
 // Create a child message with the provided parent and data, and send it on the given port.
+// I think passing the zero message as the parent will do the right thing and create a root.
 func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
 	child := parent.Child(data)
 	s.TraceEdge(parent.ID, child.ID)
@@ -100,7 +109,7 @@ func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
 
 // Records the given parent-child edge on the trace port.
 func (s *Base) TraceEdge(parentID, id msg.ID) {
-	s.Trace(TraceEdge{parentID, id})
+	s.Trace(TraceSend{time.Now(), parentID, id})
 }
 
 // Records the given multi-parent merge edge on the trace port.
@@ -109,18 +118,18 @@ func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
 		panic("TraceMerge: merge must have at least one parent ID")
 	}
 	id := msg.ID(common.NewID())
-	s.Trace(TraceMerge{parentIDs, id})
+	s.Trace(TraceMerge{time.Now(), parentIDs, id})
 	return id
 }
 
 func (s *Base) TraceReceived(id msg.ID) {
-	s.Trace(TraceReceived{id})
+	s.Trace(TraceReceived{time.Now(), id})
 }
 
 func (s *Base) TraceFailed(id msg.ID, err error) {
-	s.Trace(TraceFailed{ID: id, Error: err})
+	s.Trace(TraceFailed{time.Now(), id, err})
 }
 
 func (s *Base) TraceSucceeded(id msg.ID) {
-	s.Trace(TraceSucceeded{id})
+	s.Trace(TraceSucceeded{time.Now(), id})
 }

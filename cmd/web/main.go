@@ -42,14 +42,14 @@ func main() {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}
 	f.Init(stage.Config{
-		In:  make(chan msg.InMsg, 100),
-		Out: make(chan msg.OutMsg, 100),
+		In:  make(chan msg.MsgTo, 100),
+		Out: make(chan msg.MsgFrom, 100),
 	})
 	super.Add(f)
 	ctx := context.Background()
 	super.ServeBackground(ctx) // returns err in a channel
 
-	f.In <- msg.Msg{Data: []any{1, 2}}.In(msg.NewAddr("s1", "in"))
+	f.In <- msg.Msg{Data: []any{1, 2}}.To(msg.NewAddr("s1", "in"))
 
 	// note: I think we actually need to set up a bunch of the stuff in the constructor and therefore need to have a separate cleanup function just in case the flow never gets added to the supervisor.
 	// Because otherwise, just because it's serving doesn't mean that it's actually done the subscription work yet.

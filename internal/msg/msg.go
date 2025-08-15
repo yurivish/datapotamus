@@ -18,16 +18,16 @@ type Addr struct {
 	Port  string
 }
 
-// A message together with the stage/port address it is arriving on.
-// Used so that the stage's in channel knows the port of arrival.
-type InMsg struct {
+// A message together with the stage/port address it is arriving to,
+// so that the stage's in channel knows the port of arrival.
+type MsgTo struct {
 	Msg
 	Addr
 }
 
-// A message together with the stage/port address it is being emitted from.
-// Used so that the stage's out channel can specify the port of departure.
-type OutMsg struct {
+// A message together with the stage/port address it is being sent from,
+// so that the stage's out channel can specify the port of departure.
+type MsgFrom struct {
 	Msg
 	Addr
 }
@@ -61,11 +61,11 @@ func (m Msg) MergeTokens(tokens token.Tokens) Msg {
 }
 
 // A message together with the stage/port address it is arriving on.
-func (m Msg) In(addr Addr) InMsg {
-	return InMsg{Addr: addr, Msg: m}
+func (m Msg) To(addr Addr) MsgTo {
+	return MsgTo{Addr: addr, Msg: m}
 }
 
 // A message together with the stage/port address it is being emitted from.
-func (m Msg) Out(addr Addr) OutMsg {
-	return OutMsg{Addr: addr, Msg: m}
+func (m Msg) From(addr Addr) MsgFrom {
+	return MsgFrom{Addr: addr, Msg: m}
 }

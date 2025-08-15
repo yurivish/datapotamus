@@ -7,6 +7,7 @@ import (
 
 	"datapotamus.com/internal/msg"
 	"datapotamus.com/internal/pubsub"
+	"datapotamus.com/internal/sublist"
 )
 
 // The coordinator is a suture Service that connects flow stages to each other through pubsub.
@@ -20,9 +21,9 @@ type coordinator struct {
 	// Connections between stages
 	conns []Conn
 	// Channel on which the flow receives input messages
-	flowIn <-chan msg.InMsg
+	flowIn <-chan msg.MsgTo
 	// Channel on which the flow sends output messages
-	flowOut chan<- msg.OutMsg
+	flowOut chan<- msg.MsgFrom
 	// Connections that expose internal stage ports as flow outputs.
 	// The From field specifies the (stage, port) inside the flow and
 	// the To field specifies the external name and port on the flow,
@@ -30,9 +31,9 @@ type coordinator struct {
 	// stages and ports presented by this flow to the outside world.
 	flowOutputs []Conn
 	// Map from stage ID to input channel for that stage
-	stageIns map[string]chan msg.InMsg
+	stageIns map[string]chan msg.MsgTo
 	// Map from stage ID to output channel for that stage
-	stageOuts map[string]chan msg.OutMsg
+	stageOuts map[string]chan msg.MsgFrom
 }
 
 func (c *coordinator) Serve(ctx context.Context) error {
@@ -41,17 +42,33 @@ func (c *coordinator) Serve(ctx context.Context) error {
 		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, conn.From.Stage, conn.From.Port)
 		in := c.stageIns[conn.To.Stage]
 		defer pubsub.Sub(c.ps, subj, func(subj string, m msg.Msg) {
-			in <- m.In(conn.To)
+			in <- m.To(conn.To)
 		})()
 	}
 
 	// Connect stage output subjects to the flow output channel.
 	// Note that we could make flowOutputs a list of Conns so that you can re-map internal stage outputs/ports
 	// to new stage/port names to present a cleaner abstraction to the world outside of the flow.
+	// If the To address has a wildcard stage or port, it will be dynamically set per-message based on
+	// the stage and port of the subject on which the message is received.
 	for _, conn := range c.flowOutputs {
+		toHasWildcards := conn.To.Stage == "*" || conn.To.Port == "*"
 		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, conn.From.Stage, conn.From.Port)
 		defer pubsub.Sub(c.ps, subj, func(subj string, m msg.Msg) {
-			c.flowOut <- m.Out(conn.To)
+			to := conn.To
+			if toHasWildcards {
+				// Set the `to` destination wildcards based on the subject this message was received on
+				tsa := [3]string{} // We tokenize the subject into a (hopefully) stack-allocated slice
+				tts := sublist.TokenizeSubjectIntoSlice(tsa[:0], subj)
+				stage, port := tts[1], tts[2]
+				if conn.To.Stage == "*" {
+					to.Stage = stage
+				}
+				if conn.To.Port == "*" {
+					to.Port = port
+				}
+			}
+			c.flowOut <- m.From(to)
 		})()
 	}
 

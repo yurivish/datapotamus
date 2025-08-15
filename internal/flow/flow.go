@@ -30,8 +30,8 @@ type Flow struct {
 	// will be mirrored in the output from on flow.Out.
 	outputs []Conn
 
-	stageIns  map[string]chan msg.InMsg
-	stageOuts map[string]chan msg.OutMsg
+	stageIns  map[string]chan msg.MsgTo
+	stageOuts map[string]chan msg.MsgFrom
 }
 
 // Conn represents a directed connection between two addresses.
@@ -47,15 +47,15 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 	sv := suture.NewSimple(flowID)
 
 	// Create maps from stage ID to input and output channel
-	stageIns := map[string]chan msg.InMsg{}
-	stageOuts := map[string]chan msg.OutMsg{}
+	stageIns := map[string]chan msg.MsgTo{}
+	stageOuts := map[string]chan msg.MsgFrom{}
 
 	for _, s := range stages {
 		// todo:
 		// these are only closed by the coordinator on successful completion.
 		// do we need to close them in error cases?
-		in := make(chan msg.InMsg, 100)
-		out := make(chan msg.OutMsg, 100)
+		in := make(chan msg.MsgTo, 100)
+		out := make(chan msg.MsgFrom, 100)
 		s.Init(stage.Config{In: in, Out: out})
 		stageID := s.ID()
 		stageIns[stageID] = in

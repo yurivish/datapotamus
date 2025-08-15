@@ -27,8 +27,8 @@ func testDelayStageWithDuration(t *testing.T, millis int64) {
 	}
 
 	// Create channels for communication
-	in := make(chan msg.InMsg, 1)
-	out := make(chan msg.OutMsg, 1)
+	in := make(chan msg.MsgTo, 1)
+	out := make(chan msg.MsgFrom, 1)
 	delay.Init(Config{In: in, Out: out})
 
 	ctx := t.Context()
@@ -38,7 +38,7 @@ func testDelayStageWithDuration(t *testing.T, millis int64) {
 	}()
 
 	data := "test data"
-	inMsg := msg.New(data).In(msg.NewAddr("test-delay", "in"))
+	inMsg := msg.New(data).To(msg.NewAddr("test-delay", "in"))
 
 	start := time.Now()
 	in <- inMsg

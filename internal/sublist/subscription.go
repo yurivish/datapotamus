@@ -24,3 +24,8 @@ type Subscription struct {
 	// So we can tell if this is a "Debug" subscription (created with DebugSub)
 	Debug bool
 }
+
+// Expose the internal sublist method so we can do subject manip
+func TokenizeSubjectIntoSlice(tts []string, subject string) []string {
+	return tokenizeSubjectIntoSlice(tts, subject)
+}
