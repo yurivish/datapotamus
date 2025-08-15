@@ -26,14 +26,14 @@ func NewDelay(id string, cfg DelayConfig) (*Delay, error) {
 func (s *Delay) Serve(ctx context.Context) error {
 	for {
 		select {
-		case m, ok := <-s.in:
+		case m, ok := <-s.In:
 			if !ok {
 				// shut down gracefully if the input channel is closed
 				return nil
 			}
-			fmt.Println(s.stage, "sleeping for", s.dur)
+			fmt.Println(s.id, "sleeping for", s.dur)
 			time.Sleep(s.dur)
-			s.out <- m.Child(m.Data).Out(msg.NewAddr(s.stage, "out"))
+			s.Out <- m.Child(m.Data).Out(msg.NewAddr(s.id, "out"))
 		case <-ctx.Done():
 			return nil
 		}

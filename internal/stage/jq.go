@@ -38,7 +38,7 @@ func NewJQ(id string, cfg JQConfig) (*JQ, error) {
 func (s *JQ) Serve(ctx context.Context) error {
 	for {
 		select {
-		case m, ok := <-s.in:
+		case m, ok := <-s.In:
 			if !ok {
 				// shut down gracefully if the input channel is closed
 				return nil
@@ -48,16 +48,16 @@ func (s *JQ) Serve(ctx context.Context) error {
 			// otherwise send the results, if any.
 			// todo: send a completion token? todo: fractional tokens for input completion? wut...
 			if err != nil {
-				s.out <- m.Child(err).Out(msg.NewAddr(s.stage, "error"))
+				s.Out <- m.Child(err).Out(msg.NewAddr(s.id, "error"))
 			} else {
 				// todo: we could send partial results even in the face of an error, or
 				// even multiple errors, if we decide that is the behavior we want.
 				for _, result := range results {
-					s.out <- m.Child(result).Out(msg.NewAddr(s.stage, "out"))
+					s.Out <- m.Child(result).Out(msg.NewAddr(s.id, "out"))
 				}
 			}
 		case <-ctx.Done():
-			fmt.Printf("jq: %v: ctx done", s.stage)
+			fmt.Printf("jq: %v: ctx done", s.id)
 			return nil
 		}
 	}

@@ -32,22 +32,22 @@ type Config struct {
 // Base stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
 type Base struct {
-	stage string // stage ID
-	in    <-chan msg.InMsg
-	out   chan<- msg.OutMsg
+	id  string
+	In  <-chan msg.InMsg
+	Out chan<- msg.OutMsg
 }
 
 func NewBase(id string) Base {
 	// We return the struct rather than a pointer since this is quite small
 	// and very immutable and I think it makes more sense to embed the struct directly.
-	return Base{stage: id}
+	return Base{id: id}
 }
 
 func (s *Base) ID() string {
-	return s.stage
+	return s.id
 }
 
 func (s *Base) Prepare(cfg Config) {
-	s.in = cfg.In
-	s.out = cfg.Out
+	s.In = cfg.In
+	s.Out = cfg.Out
 }
