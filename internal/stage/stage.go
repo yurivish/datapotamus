@@ -86,6 +86,7 @@ type (
 		ID        msg.ID
 	}
 
+	// todo: TraceRecv to parallel send?
 	// message was received by the stage
 	TraceReceived struct {
 		Time time.Time
