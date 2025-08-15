@@ -83,7 +83,7 @@ type (
 	TraceSend struct {
 		Time     time.Time
 		ParentID msg.ID
-		ID       msg.ID
+		Message  msg.Msg
 	}
 
 	// created a new merge node independent of any messages
@@ -117,7 +117,7 @@ type (
 // I think passing the zero message as the parent will do the right thing and create a root.
 func (s *StageBase) TraceSend(parent msg.Msg, data any, port string) {
 	child := parent.Child(data)
-	s.Trace <- TraceSend{time.Now(), parent.ID, child.ID}
+	s.Trace <- TraceSend{time.Now(), parent.ID, child}
 	s.Send(child, port)
 }
 
