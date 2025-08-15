@@ -22,7 +22,7 @@ import (
 func testDelayStageWithDuration(t *testing.T, millis int64) {
 	// Create the stage
 	dur := time.Duration(millis) * time.Millisecond
-	delay, err := NewDelay("test-delay", DelayConfig{Millis: millis})
+	delay, err := DelayFromConfig("test-delay", DelayConfig{Millis: millis})
 	if err != nil {
 		t.Fatalf("failed to create delay stage: %v", err)
 	}

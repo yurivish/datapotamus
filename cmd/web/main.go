@@ -18,13 +18,13 @@ func main() {
 
 	super := suture.NewSimple("app")
 	ps := pubsub.NewPubSub()
-	s1, err := stage.NewJQ("s1", stage.JQConfig{Filter: ".[]", TimeoutMillis: 250})
+	s1, err := stage.JQFromConfig("s1", stage.JQConfig{Filter: ".[]", TimeoutMillis: 250})
 	if err != nil {
 		log.Fatal(err)
 	}
-	s2, err := stage.NewDelay("s2", stage.DelayConfig{Millis: 1000})
+	s2, err := stage.DelayFromConfig("s2", stage.DelayConfig{Millis: 1000})
 
-	s3, err := stage.NewJQ("s3", stage.JQConfig{Filter: "[.]", TimeoutMillis: 250})
+	s3, err := stage.JQFromConfig("s3", stage.JQConfig{Filter: "[.]", TimeoutMillis: 250})
 	if err != nil {
 		log.Fatal(err)
 	}

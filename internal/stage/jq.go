@@ -22,7 +22,11 @@ type JQConfig struct {
 	TimeoutMillis int64  `json:"timeoutMillis"`
 }
 
-func NewJQ(id string, cfg JQConfig) (*JQ, error) {
+func NewJQ(id string, code *gojq.Code, timeout time.Duration) *JQ {
+	return &JQ{flow.NewStageBase(id), code, timeout}
+}
+
+func JQFromConfig(id string, cfg JQConfig) (*JQ, error) {
 	if cfg.TimeoutMillis == 0 {
 		return nil, fmt.Errorf("jq config: TimeoutMillis should be greater than zero")
 	}
@@ -35,7 +39,7 @@ func NewJQ(id string, cfg JQConfig) (*JQ, error) {
 		return nil, fmt.Errorf("jq: failed to compile filter: %w", err)
 	}
 	timeout := time.Duration(cfg.TimeoutMillis) * time.Millisecond
-	return &JQ{StageBase: flow.NewStageBase(id), code: code, timeout: timeout}, nil
+	return NewJQ(id, code, timeout), nil
 }
 
 func (s *JQ) Serve(ctx context.Context) error {

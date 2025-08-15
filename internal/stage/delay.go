@@ -10,7 +10,11 @@ import (
 
 type Delay struct {
 	flow.StageBase
-	dur time.Duration
+	duration time.Duration
+}
+
+func NewDelay(id string, duration time.Duration) *Delay {
+	return &Delay{flow.NewStageBase(id), duration}
 }
 
 type DelayConfig struct {
@@ -18,9 +22,9 @@ type DelayConfig struct {
 	Millis int64 `json:"millis"`
 }
 
-func NewDelay(id string, cfg DelayConfig) (*Delay, error) {
-	dur := time.Duration(cfg.Millis) * time.Millisecond
-	return &Delay{StageBase: flow.NewStageBase(id), dur: dur}, nil
+func DelayFromConfig(id string, cfg DelayConfig) (*Delay, error) {
+	duration := time.Duration(cfg.Millis) * time.Millisecond
+	return NewDelay(id, duration), nil
 }
 
 func (s *Delay) Serve(ctx context.Context) error {
@@ -31,8 +35,8 @@ func (s *Delay) Serve(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			fmt.Println(s.ID(), "sleeping for", s.dur)
-			time.Sleep(s.dur)
+			fmt.Println(s.ID(), "sleeping for", s.duration)
+			time.Sleep(s.duration)
 			// Send a child message with the same data (but a new ID)
 			s.TraceSend(m.Msg, m.Data, "out")
 			s.TraceSucceeded(m.ID)
