@@ -58,18 +58,7 @@ func (s *Base) Send(m msg.Msg, port string) {
 	s.Out <- m.Out(msg.NewAddr(s.id, port))
 }
 
-// Create a child message with the provided parent and data, and send it on the given port.
-func (s *Base) SendChild(p msg.Msg, data any, port string) {
-	m := p.Child(data)
-	s.TraceEdge(p.ID, m.ID)
-	s.Send(m, port)
-}
-
-// Send a message with the given data to the trace port.
-func (s *Base) Trace(data any) {
-	s.Send(msg.New(data), "trace")
-}
-
+// Event types emitted onto stage "trace" ports
 type (
 	TraceEdge struct {
 		ParentID msg.ID
@@ -81,10 +70,14 @@ type (
 	}
 
 	// message was received by the stage
-	TraceReceived msg.ID
+	TraceReceived struct {
+		ID msg.ID
+	}
 
 	// messages successfully processed
-	TraceSucceeded msg.ID
+	TraceSucceeded struct {
+		ID msg.ID
+	}
 
 	// message processing failed. may include retry/snooze params here later.
 	TraceFailed struct {
@@ -92,6 +85,18 @@ type (
 		Error error
 	}
 )
+
+// Send a message with the given data to the trace port.
+func (s *Base) Trace(data any) {
+	s.Send(msg.New(data), "trace")
+}
+
+// Create a child message with the provided parent and data, and send it on the given port.
+func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
+	child := parent.Child(data)
+	s.TraceEdge(parent.ID, child.ID)
+	s.Send(child, port)
+}
 
 // Records the given parent-child edge on the trace port.
 func (s *Base) TraceEdge(parentID, id msg.ID) {
@@ -109,7 +114,7 @@ func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
 }
 
 func (s *Base) TraceReceived(id msg.ID) {
-	s.Trace(TraceReceived(id))
+	s.Trace(TraceReceived{id})
 }
 
 func (s *Base) TraceFailed(id msg.ID, err error) {
@@ -117,5 +122,5 @@ func (s *Base) TraceFailed(id msg.ID, err error) {
 }
 
 func (s *Base) TraceSucceeded(id msg.ID) {
-	s.Trace(TraceSucceeded(id))
+	s.Trace(TraceSucceeded{id})
 }

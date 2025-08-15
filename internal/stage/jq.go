@@ -53,7 +53,7 @@ func (s *JQ) Serve(ctx context.Context) error {
 			} else {
 				// send the results
 				for _, result := range results {
-					s.SendChild(m.Msg, result, "out")
+					s.TraceSend(m.Msg, result, "out")
 				}
 				s.TraceSucceeded(m.ID)
 

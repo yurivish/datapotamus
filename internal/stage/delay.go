@@ -32,7 +32,7 @@ func (s *Delay) Serve(ctx context.Context) error {
 			fmt.Println(s.id, "sleeping for", s.dur)
 			time.Sleep(s.dur)
 			// Send a child message with the same data (but a new ID)
-			s.SendChild(m.Msg, m.Data, "out")
+			s.TraceSend(m.Msg, m.Data, "out")
 			s.TraceSucceeded(m.ID)
 		case <-ctx.Done():
 			return nil
