@@ -7,6 +7,10 @@ import (
 
 type ID string
 
+// Message sent between processing stages.
+// Must not be mutated once sent out from a stage,
+// including the data -- the messages may be stored
+// by the tracing system, which assumes immutability.
 type Msg struct {
 	ID     ID
 	Data   any

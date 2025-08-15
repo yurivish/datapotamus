@@ -13,9 +13,19 @@ import (
 // channel coordinate system of [:process-id :channel-id]. (For us, :stage-id :port-id)
 
 type Stage interface {
-	ID() string // an ID / name for the stage, which has to be unique within its flow
+	// an ID for the stage, which has to be unique within its flow.
+	// Unlike messages and flows, human-readable IDs are often used for stages
+	// since we display them in the UI as the identifiers for a stage.
+	ID() string
 
 	// Called once prior to Serve being called.
+	// Serve may be called multple times due to suture restarts, so any
+	// one-time initialization that needs to be done "once the service is running"
+	// should be done here as this function is called right before the stage is added
+	// to a supervisor.
+	// Actually, as I write this, I'm realizing this is kind of an incoherent idea.
+	// Just because you're added to the supervisor doesn't mean you're actually going to start.
+	// So maybe we need a Deinit to dispose of things if Serve() never gets called?
 	Init(cfg Config)
 
 	// Run the stage, returning an error in case of unexpected failure,
@@ -61,13 +71,15 @@ func (s *Base) Send(m msg.Msg, port string) {
 
 // Event types emitted onto stage "trace" ports
 type (
+	// a message is sent to a stage output channel
+	// recorded right before the call to s.Send
 	TraceSend struct {
-		// The time right before the message is enqueued onto the Out channel for the stage
 		Time     time.Time
 		ParentID msg.ID
 		ID       msg.ID
 	}
 
+	// created a new merge node independent of any messages
 	TraceMerge struct {
 		Time      time.Time
 		ParentIDs []msg.ID
@@ -86,7 +98,7 @@ type (
 		ID   msg.ID
 	}
 
-	// message processing failed. may include retry/snooze params here later.
+	// message processing failed. may include retry/snooze params here later or maybe those should go elsewhere.
 	TraceFailed struct {
 		Time  time.Time
 		ID    msg.ID
@@ -94,7 +106,7 @@ type (
 	}
 )
 
-// Send a message with the given data to the trace port.
+// Send a message with the given data to the "trace" port
 func (s *Base) Trace(data any) {
 	s.Send(msg.New(data), "trace")
 }
@@ -107,12 +119,12 @@ func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
 	s.Send(child, port)
 }
 
-// Records the given parent-child edge on the trace port.
+// Records the given parent-child edge on the "trace" port
 func (s *Base) TraceEdge(parentID, id msg.ID) {
 	s.Trace(TraceSend{time.Now(), parentID, id})
 }
 
-// Records the given multi-parent merge edge on the trace port.
+// Records the given multi-parent merge edge on the "trace" port and returns its ID
 func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
 	if len(parentIDs) == 0 {
 		panic("TraceMerge: merge must have at least one parent ID")

@@ -51,12 +51,8 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 	stageOuts := map[string]chan msg.MsgFrom{}
 
 	for _, s := range stages {
-		// todo:
-		// these are only closed by the coordinator on successful completion.
-		// do we need to close them in error cases?
 		in := make(chan msg.MsgTo, 100)
 		out := make(chan msg.MsgFrom, 100)
-		s.Init(stage.Config{In: in, Out: out})
 		stageID := s.ID()
 		stageIns[stageID] = in
 		stageOuts[stageID] = out
@@ -73,6 +69,8 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []stage.Stage, conns []Con
 	}
 
 	for _, s := range stages {
+		stageID := s.ID()
+		s.Init(stage.Config{In: stageIns[stageID], Out: stageOuts[stageID]})
 		sv.Add(s)
 	}
 
