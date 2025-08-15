@@ -21,10 +21,9 @@ func Merge(ms []Msg) MergeGroup {
 }
 
 type Msg struct {
-	Data     any
-	ID       string
-	ParentID string
-	Tokens   token.Tokens
+	ID     string
+	Data   any
+	Tokens token.Tokens
 }
 
 type Addr struct {
@@ -57,10 +56,9 @@ func New(data any) Msg {
 // Returns a new message that is a child of the parent message.
 func (m Msg) Child(data any) Msg {
 	return Msg{
-		Data:     data,
-		ID:       common.NewID(),
-		ParentID: m.ID,
-		Tokens:   m.Tokens,
+		Data:   data,
+		ID:     common.NewID(),
+		Tokens: m.Tokens,
 	}
 }
 

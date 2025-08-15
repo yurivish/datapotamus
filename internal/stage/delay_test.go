@@ -52,12 +52,6 @@ func testDelayStageWithDuration(t *testing.T, millis int64) {
 			t.Errorf("message was not delayed enough: expected at least %v, got %v", dur, elapsed)
 		}
 
-		// Verify parent-child relationship
-		if outMsg.ParentID != inMsg.ID {
-			t.Errorf("parent-child relationship incorrect: expected ParentID=%s, got ParentID=%s",
-				inMsg.ID, outMsg.ParentID)
-		}
-
 		// Verify data is preserved
 		if outMsg.Data != data {
 			t.Errorf("message data not preserved: expected %v, got %v", data, outMsg.Data)

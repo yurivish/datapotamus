@@ -1,8 +1,9 @@
 package lineage
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/google/go-cmp/cmp"
 )
 
 func TestDAGWithMergeNode(t *testing.T) {
@@ -21,13 +22,13 @@ func TestDAGWithMergeNode(t *testing.T) {
 
 	lineageC := dag.GetLineage("C")
 	expectedC := []string{"C", "A", "root", "M", "E"}
-	if !reflect.DeepEqual(lineageC, expectedC) {
+	if !cmp.Equal(lineageC, expectedC) {
 		t.Errorf("Lineage of C: got %v, want %v", lineageC, expectedC)
 	}
 
 	lineageM := dag.GetLineage("M")
 	expectedM := []string{"M", "D", "A", "root", "C", "B", "E"}
-	if !reflect.DeepEqual(lineageM, expectedM) {
+	if !cmp.Equal(lineageM, expectedM) {
 		t.Errorf("Lineage of M: got %v, want %v", lineageM, expectedM)
 	}
 }
