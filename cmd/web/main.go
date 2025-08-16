@@ -29,10 +29,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	s1.Connect(flow.DefaultStageChans())
-	s2.Connect(flow.DefaultStageChans())
-	s3.Connect(flow.DefaultStageChans())
-
 	f, err := flow.NewFlow(
 		"flow1",
 		ps,
@@ -45,11 +41,6 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}
-	f.Connect(flow.NewStageChans(
-		make(chan msg.MsgTo, 100),
-		make(chan msg.MsgFrom, 100),
-		make(chan flow.TraceEvent, 100),
-	))
 	super.Add(f)
 	ctx := context.Background()
 	super.ServeBackground(ctx) // returns err in a channel
@@ -76,7 +67,7 @@ loop:
 			}
 			fmt.Println("trace:", e)
 
-		case <-time.After(3 * time.Second):
+		case <-time.After(2 * time.Second):
 			fmt.Println("done w loop due to timeout")
 			break loop
 

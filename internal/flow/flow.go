@@ -23,7 +23,7 @@ type Flow struct {
 	// A flow is a stage.
 	StageBase
 
-	// A flow is both a service and a supervisor of individual stages.
+	// A flow is a service that supervises individual stage services.
 	stageSupervisor *suture.Supervisor
 	ps              *pubsub.PubSub
 	stagesById      map[string]Stage
@@ -36,13 +36,9 @@ type Flow struct {
 	flowConns []Conn
 }
 
-// todo: accept a StageChans per stage
-// Actually... Is it good
 func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, flowConns []Conn) (*Flow, error) {
-
 	// Create maps from stage ID to input and output channel
 	stagesById := map[string]Stage{}
-
 	for _, s := range stages {
 		if _, ok := stagesById[s.ID()]; ok {
 			return nil, fmt.Errorf("flow: duplicate stage id: %q", s.ID())
@@ -69,15 +65,11 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 
 	stageSupervisor := suture.NewSimple(flowID)
 	for _, s := range stages {
-		// s.Connect(NewStageChans(
-		// 	make(chan msg.MsgTo, 100),
-		// 	make(chan msg.MsgFrom, 100),
-		// 	make(chan TraceEvent, 100)))
 		stageSupervisor.Add(s)
 	}
 
 	return &Flow{
-		StageBase:       NewStageBase(flowID),
+		StageBase:       NewStageBase(flowID, DefaultStageChans()),
 		stageSupervisor: stageSupervisor,
 		ps:              ps,
 		stagesById:      stagesById,
@@ -122,14 +114,14 @@ func (f *Flow) Serve(ctx context.Context) error {
 					to.Port = port
 				}
 			}
-			f.OutChan <- m.From(to)
+			f.Ch.Out <- m.From(to)
 		})()
 	}
 
 	var wg sync.WaitGroup
 
 	// I am not confident that this the waitgroup closing logic is correct.
-	flowTraceCh := f.TraceChan
+	flowTraceCh := f.Ch.Trace
 
 	for _, s := range f.stagesById {
 		// Connect output channels to their subjects
@@ -161,7 +153,7 @@ func (f *Flow) Serve(ctx context.Context) error {
 	// the stage In channels will be nil.
 	wg.Go(func() {
 		defer wg.Done()
-		for m := range f.InChan {
+		for m := range f.Ch.In {
 			f.stagesById[m.Stage].In() <- m
 		}
 	})

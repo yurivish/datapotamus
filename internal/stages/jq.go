@@ -23,7 +23,7 @@ type JQConfig struct {
 }
 
 func NewJQ(id string, code *gojq.Code, timeout time.Duration) *JQ {
-	return &JQ{flow.NewStageBase(id), code, timeout}
+	return &JQ{flow.NewStageBase(id, flow.DefaultStageChans()), code, timeout}
 }
 
 func JQFromConfig(id string, cfg JQConfig) (*JQ, error) {
@@ -45,7 +45,7 @@ func JQFromConfig(id string, cfg JQConfig) (*JQ, error) {
 func (s *JQ) Serve(ctx context.Context) error {
 	for {
 		select {
-		case m, ok := <-s.InChan:
+		case m, ok := <-s.Ch.In:
 			if !ok {
 				// shut down gracefully if the input channel is closed
 				return nil

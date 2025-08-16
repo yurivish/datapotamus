@@ -20,17 +20,13 @@ import (
 
 // Test that delay stage delays messages and preserves parent-child relationships
 func testDelayStageWithDuration(t *testing.T, millis int64) {
-	// Create the stage
-	dur := time.Duration(millis) * time.Millisecond
-	delay, err := DelayFromConfig("test-delay", DelayConfig{Millis: millis})
-	if err != nil {
-		t.Fatalf("failed to create delay stage: %v", err)
-	}
-
 	// Create channels for communication
 	in := make(chan msg.MsgTo, 1)
 	out := make(chan msg.MsgFrom, 1)
-	delay.Connect(flow.NewStageChans(in, out, nil))
+
+	// Create the stage
+	dur := time.Duration(millis) * time.Millisecond
+	delay := NewDelay("test-delay", dur, flow.StageChans{In: in, Out: out})
 
 	ctx := t.Context()
 	errCh := make(chan error, 1)
@@ -69,7 +65,7 @@ func testDelayStageWithDuration(t *testing.T, millis int64) {
 	}
 
 	t.Cleanup(func() {
-		err = <-errCh
+		err := <-errCh
 		if err != nil {
 			t.Fatalf("error shutting down stage: %v", err)
 		}

@@ -13,8 +13,8 @@ type Delay struct {
 	duration time.Duration
 }
 
-func NewDelay(id string, duration time.Duration) *Delay {
-	return &Delay{flow.NewStageBase(id), duration}
+func NewDelay(id string, duration time.Duration, chans flow.StageChans) *Delay {
+	return &Delay{flow.NewStageBase(id, chans), duration}
 }
 
 type DelayConfig struct {
@@ -24,13 +24,13 @@ type DelayConfig struct {
 
 func DelayFromConfig(id string, cfg DelayConfig) (*Delay, error) {
 	duration := time.Duration(cfg.Millis) * time.Millisecond
-	return NewDelay(id, duration), nil
+	return NewDelay(id, duration, flow.DefaultStageChans()), nil
 }
 
 func (s *Delay) Serve(ctx context.Context) error {
 	for {
 		select {
-		case m, ok := <-s.InChan:
+		case m, ok := <-s.Ch.In:
 			s.TraceRecv(m.ID)
 			if !ok {
 				return nil
