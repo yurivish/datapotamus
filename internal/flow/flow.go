@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	"datapotamus.com/internal/core/msg"
-	"datapotamus.com/internal/core/pubsub"
-	"datapotamus.com/internal/core/sublist"
+	"datapotamus.com/internal/flow/msg"
+	"datapotamus.com/internal/flow/pubsub"
+	"datapotamus.com/internal/flow/sublist"
 	"github.com/thejerf/suture/v4"
 )
 

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"datapotamus.com/internal/common"
-	"datapotamus.com/internal/core/msg"
+	"datapotamus.com/internal/flow/msg"
 )
 
 // todo: for validation:

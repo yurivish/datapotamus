@@ -5,7 +5,7 @@ import (
 	"runtime"
 
 	"datapotamus.com/internal/common"
-	"datapotamus.com/internal/core/sublist"
+	"datapotamus.com/internal/flow/sublist"
 )
 
 // Simple pub-sub system, optimized for observability and ease of use.

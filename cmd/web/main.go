@@ -6,9 +6,9 @@ import (
 	"log"
 	"time"
 
-	"datapotamus.com/internal/core/flow"
-	"datapotamus.com/internal/core/msg"
-	"datapotamus.com/internal/core/pubsub"
+	"datapotamus.com/internal/flow"
+	"datapotamus.com/internal/flow/msg"
+	"datapotamus.com/internal/flow/pubsub"
 	"datapotamus.com/internal/stage"
 	"github.com/thejerf/suture/v4"
 )

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"datapotamus.com/internal/core/flow"
+	"datapotamus.com/internal/flow"
 	"github.com/itchyny/gojq"
 )
 

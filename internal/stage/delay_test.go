@@ -5,8 +5,8 @@ import (
 	"testing/synctest"
 	"time"
 
-	"datapotamus.com/internal/core/flow"
-	"datapotamus.com/internal/core/msg"
+	"datapotamus.com/internal/flow"
+	"datapotamus.com/internal/flow/msg"
 )
 
 // todo
