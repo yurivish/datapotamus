@@ -24,7 +24,7 @@ type Stage interface {
 	// We need this since the stage constructor does not know how to connect the stage
 	// since that information is available only in the execution context, eg. inside a flow.
 	// Should not create any resources that require Serve to run in order to be cleaned up.
-	Connect(cfg StageConfig)
+	// Connect(cfg StageChans)
 
 	// After Connect is called, returns a non-nil channel for input messages to this stage
 	In() chan msg.MsgTo
@@ -39,7 +39,7 @@ type Stage interface {
 	Serve(ctx context.Context) error
 }
 
-type StageConfig struct {
+type StageChans struct {
 	// Channel on which the stage will receive input messages
 	in chan msg.MsgTo
 	// Channel on which the stage will send output messages
@@ -48,19 +48,26 @@ type StageConfig struct {
 	trace chan TraceEvent
 }
 
-func NewStageConfig(
+func DefaultStageChans() StageChans {
+	return NewStageChans(
+		make(chan msg.MsgTo, 100),
+		make(chan msg.MsgFrom, 100),
+		make(chan TraceEvent, 100))
+}
+
+func NewStageChans(
 	in chan msg.MsgTo,
 	out chan msg.MsgFrom,
 	trace chan TraceEvent,
-) StageConfig {
-	return StageConfig{in, out, trace}
+) StageChans {
+	return StageChans{in, out, trace}
 }
 
 // StageBase stage implementation that implements a subset of the Stage interface
 // and can be embedded to simplify the implementation of other stages
 type StageBase struct {
 	id string
-	StageConfig
+	StageChans
 }
 
 func NewStageBase(id string) StageBase {
@@ -73,20 +80,20 @@ func (s *StageBase) ID() string {
 	return s.id
 }
 
-func (s *StageBase) Connect(cfg StageConfig) {
-	s.StageConfig = cfg
+func (s *StageBase) Connect(cfg StageChans) {
+	s.StageChans = cfg
 }
 
 func (s *StageBase) In() chan msg.MsgTo {
-	return s.StageConfig.in
+	return s.StageChans.in
 }
 
 func (s *StageBase) Out() chan msg.MsgFrom {
-	return s.StageConfig.out
+	return s.StageChans.out
 }
 
 func (s *StageBase) Trace() chan TraceEvent {
-	return s.StageConfig.trace
+	return s.StageChans.trace
 }
 
 // Send message `m` on port `port`.

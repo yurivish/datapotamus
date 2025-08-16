@@ -36,6 +36,8 @@ type Flow struct {
 	flowConns []Conn
 }
 
+// todo: accept a StageChans per stage
+// Actually... Is it good
 func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, flowConns []Conn) (*Flow, error) {
 
 	// Create maps from stage ID to input and output channel
@@ -67,10 +69,10 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 
 	stageSupervisor := suture.NewSimple(flowID)
 	for _, s := range stages {
-		s.Connect(NewStageConfig(
-			make(chan msg.MsgTo, 100),
-			make(chan msg.MsgFrom, 100),
-			make(chan TraceEvent, 100)))
+		// s.Connect(NewStageChans(
+		// 	make(chan msg.MsgTo, 100),
+		// 	make(chan msg.MsgFrom, 100),
+		// 	make(chan TraceEvent, 100)))
 		stageSupervisor.Add(s)
 	}
 

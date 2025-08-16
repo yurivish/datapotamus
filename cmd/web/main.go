@@ -29,6 +29,10 @@ func main() {
 		log.Fatal(err)
 	}
 
+	s1.Connect(flow.DefaultStageChans())
+	s2.Connect(flow.DefaultStageChans())
+	s3.Connect(flow.DefaultStageChans())
+
 	f, err := flow.NewFlow(
 		"flow1",
 		ps,
@@ -41,7 +45,7 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}
-	f.Connect(flow.NewStageConfig(
+	f.Connect(flow.NewStageChans(
 		make(chan msg.MsgTo, 100),
 		make(chan msg.MsgFrom, 100),
 		make(chan flow.TraceEvent, 100),

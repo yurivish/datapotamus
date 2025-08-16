@@ -30,7 +30,7 @@ func testDelayStageWithDuration(t *testing.T, millis int64) {
 	// Create channels for communication
 	in := make(chan msg.MsgTo, 1)
 	out := make(chan msg.MsgFrom, 1)
-	delay.Connect(flow.NewStageConfig(in, out, nil))
+	delay.Connect(flow.NewStageChans(in, out, nil))
 
 	ctx := t.Context()
 	errCh := make(chan error, 1)
