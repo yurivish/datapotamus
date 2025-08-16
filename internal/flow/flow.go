@@ -148,35 +148,29 @@ func (f *Flow) Serve(ctx context.Context) error {
 		}
 	}
 
-	// Publish flow input messages to the appropriate stage subject.
-	wg.Go(func() {
-		for m := range f.Ch.In {
+	// Start the stages
+	errCh := f.sv.ServeBackground(ctx)
+
+	// Publish flow input messages to the appropriate stage subjects.
+	// We do not trace messages inside the Flow stage.
+loop:
+	for {
+		select {
+		case m, ok := <-f.Ch.In:
+			if !ok {
+				// find some way to kick off graceful shutdown...
+				break loop
+			}
 			f.stagesById[m.Stage].In() <- m
+
+		case <-ctx.Done():
+			break loop
 		}
-	})
+	}
 
-	// //
-	// // Use a defer block so that this runs even if this function panics... or something
-	// defer func() {
-	// 	// Close stage inputs
-	// 	for _, s := range f.stagesById {
-	// 		close(s.In())
-	// 	}
-
-	// 	// Drain stage outputs (ie. wait for output close)
-	// 	// todo: how do we do the same for trace?
-	// 	wg.Wait()
-	// }()
-
-	// Once the flow input channel is closed, close
-	// for _, s := range f.stagesById {
-	// 	close(s.In())
-	// }
-
-	// Start the stages and wait until they're finished
-	err := f.sv.Serve(ctx)
-	if err != nil {
+	if err := <-errCh; err != nil {
 		// If the stage supervisor failed, do not automatically restart the flow.
+		// todo: is there a way for us to say "if any stage fails, fail the supervisor"?
 		return errors.Join(suture.ErrDoNotRestart, err)
 	}
 	return nil

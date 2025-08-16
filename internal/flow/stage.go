@@ -106,7 +106,7 @@ type (
 	TraceSendFrom struct {
 		Time     time.Time
 		ParentID msg.ID
-		Message  msg.Msg
+		Msg      msg.Msg
 	}
 
 	// recorded right after the message was received by the stage
