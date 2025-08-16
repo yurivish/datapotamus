@@ -45,7 +45,7 @@ func JQFromConfig(id string, cfg JQConfig) (*JQ, error) {
 func (s *JQ) Serve(ctx context.Context) error {
 	for {
 		select {
-		case m, ok := <-s.In:
+		case m, ok := <-s.In():
 			if !ok {
 				// shut down gracefully if the input channel is closed
 				return nil

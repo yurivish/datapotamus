@@ -41,16 +41,16 @@ func main() {
 	if err != nil {
 		log.Fatal(fmt.Errorf("failed to construct flow: %w", err))
 	}
-	f.Connect(flow.StageConfig{
-		In:    make(chan msg.MsgTo, 100),
-		Out:   make(chan msg.MsgFrom, 100),
-		Trace: make(chan flow.TraceEvent, 100),
-	})
+	f.Connect(flow.NewStageConfig(
+		make(chan msg.MsgTo, 100),
+		make(chan msg.MsgFrom, 100),
+		make(chan flow.TraceEvent, 100),
+	))
 	super.Add(f)
 	ctx := context.Background()
 	super.ServeBackground(ctx) // returns err in a channel
 
-	f.In <- msg.Msg{Data: []any{1, 2}}.To(msg.NewAddr("s1", "in"))
+	f.In() <- msg.Msg{Data: []any{1, 2}}.To(msg.NewAddr("s1", "in"))
 
 	// note: I think we actually need to set up a bunch of the stuff in the constructor and therefore need to have a separate cleanup function just in case the flow never gets added to the supervisor.
 	// Because otherwise, just because it's serving doesn't mean that it's actually done the subscription work yet.
@@ -60,13 +60,13 @@ func main() {
 loop:
 	for {
 		select {
-		case m, ok := <-f.Out:
+		case m, ok := <-f.Out():
 			if !ok {
 				break loop
 			}
 			fmt.Println("out:", m)
 
-		case e, ok := <-f.Trace:
+		case e, ok := <-f.Trace():
 			if !ok {
 				break loop
 			}

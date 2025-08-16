@@ -24,6 +24,10 @@ type Stage interface {
 	// Should not create any resources that require Serve to run in order to be cleaned up.
 	Connect(cfg StageConfig)
 
+	In() chan msg.MsgTo
+	Out() chan msg.MsgFrom
+	Trace() chan TraceEvent // Allowed to be nil
+
 	// Run the stage, returning an error in case of unexpected failure.
 	// This implements the suture.Service interface.
 	Serve(ctx context.Context) error
@@ -33,11 +37,19 @@ type TraceEvent any // for now; later maybe Time() time.Time
 
 type StageConfig struct {
 	// Channel on which the stage will receive input messages
-	In chan msg.MsgTo
+	in chan msg.MsgTo
 	// Channel on which the stage will send output messages
-	Out chan msg.MsgFrom
+	out chan msg.MsgFrom
 	// Channel on which the stage will send trace events
-	Trace chan TraceEvent
+	trace chan TraceEvent
+}
+
+func NewStageConfig(
+	in chan msg.MsgTo,
+	out chan msg.MsgFrom,
+	trace chan TraceEvent,
+) StageConfig {
+	return StageConfig{in, out, trace}
 }
 
 // StageBase stage implementation that implements a subset of the Stage interface
@@ -61,9 +73,21 @@ func (s *StageBase) Connect(cfg StageConfig) {
 	s.StageConfig = cfg
 }
 
+func (s *StageBase) In() chan msg.MsgTo {
+	return s.StageConfig.in
+}
+
+func (s *StageBase) Out() chan msg.MsgFrom {
+	return s.StageConfig.out
+}
+
+func (s *StageBase) Trace() chan TraceEvent {
+	return s.StageConfig.trace
+}
+
 // Send message `m` on port `port`.
 func (s *StageBase) Send(m msg.Msg, port string) {
-	s.Out <- m.From(msg.NewAddr(s.id, port))
+	s.out <- m.From(msg.NewAddr(s.id, port))
 }
 
 // Event types emitted onto stage "trace" ports
@@ -106,7 +130,9 @@ type (
 // I think passing the zero message as the parent will do the right thing and create a root.
 func (s *StageBase) TraceSend(parent msg.Msg, data any, port string) {
 	child := parent.Child(data)
-	s.Trace <- TraceSend{time.Now(), parent.ID, child}
+	if s.trace != nil {
+		s.trace <- TraceSend{time.Now(), parent.ID, child}
+	}
 	s.Send(child, port)
 }
 
@@ -116,18 +142,26 @@ func (s *StageBase) TraceMerge(parentIDs []msg.ID) msg.ID {
 		panic("TraceMerge: merge must have at least one parent ID")
 	}
 	id := msg.ID(common.NewID())
-	s.Trace <- TraceMerge{time.Now(), parentIDs, id}
+	if s.trace != nil {
+		s.trace <- TraceMerge{time.Now(), parentIDs, id}
+	}
 	return id
 }
 
 func (s *StageBase) TraceRecv(id msg.ID) {
-	s.Trace <- TraceRecv{time.Now(), id}
+	if s.trace != nil {
+		s.trace <- TraceRecv{time.Now(), id}
+	}
 }
 
 func (s *StageBase) TraceFailed(id msg.ID, err error) {
-	s.Trace <- TraceFailed{time.Now(), id, err}
+	if s.trace != nil {
+		s.trace <- TraceFailed{time.Now(), id, err}
+	}
 }
 
 func (s *StageBase) TraceSucceeded(id msg.ID) {
-	s.Trace <- TraceSucceeded{time.Now(), id}
+	if s.trace != nil {
+		s.trace <- TraceSucceeded{time.Now(), id}
+	}
 }
