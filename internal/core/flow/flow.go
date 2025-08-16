@@ -27,11 +27,9 @@ type Flow struct {
 	// and the `To` field specifies how to present that to the outside world.
 	// If from and to are identical then the internal structure of the stage
 	// will be mirrored in the output from on flow.Out.
-	outputs []Conn
+	flowConns []Conn
 
-	stageIns    map[string]chan msg.MsgTo
-	stageOuts   map[string]chan msg.MsgFrom
-	stageTraces map[string]chan TraceEvent
+	stageConfigs map[string]StageConfig // todo: pointer? copying should be fine since this should never change
 }
 
 // Conn represents a directed connection between two addresses.
@@ -43,38 +41,39 @@ func SelfConn(addr msg.Addr) Conn {
 	return Conn{From: addr, To: addr}
 }
 
-func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, flowOutputs []Conn) (*Flow, error) {
+func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, flowConns []Conn) (*Flow, error) {
 	sv := suture.NewSimple(flowID)
 
 	// Create maps from stage ID to input and output channel
-	stageIns := map[string]chan msg.MsgTo{}
-	stageOuts := map[string]chan msg.MsgFrom{}
-	stageTraces := map[string]chan TraceEvent{}
+	stageConfigs := map[string]StageConfig{}
 
 	for _, s := range stages {
-		stageID := s.ID()
-		stageIns[stageID] = make(chan msg.MsgTo, 100)
-		stageOuts[stageID] = make(chan msg.MsgFrom, 100)
-		stageTraces[stageID] = make(chan TraceEvent, 100)
+		cfg := StageConfig{
+			In:    make(chan msg.MsgTo, 100),
+			Out:   make(chan msg.MsgFrom, 100),
+			Trace: make(chan TraceEvent, 100),
+		}
+		stageConfigs[s.ID()] = cfg
 	}
 
-	// Validate that all connection stages exist. We do not yet validate ports.
+	// Validate that all stages referenced from stageConns exist. We do not yet validate ports.
 	for _, conn := range stageConns {
-		if _, ok := stageIns[conn.From.Stage]; !ok {
-			return nil, fmt.Errorf("flow: 'from' stage does not exist: %v", conn.From)
+		if _, ok := stageConfigs[conn.From.Stage]; !ok {
+			return nil, fmt.Errorf("stage conn: 'from' stage does not exist: %v", conn.From)
 		}
-		if _, ok := stageIns[conn.To.Stage]; !ok {
-			return nil, fmt.Errorf("flow: 'from' stage does not exist: %v", conn.From)
+		if _, ok := stageConfigs[conn.To.Stage]; !ok {
+			return nil, fmt.Errorf("stage conn: 'from' stage does not exist: %v", conn.From)
+		}
+	}
+
+	for _, conn := range flowConns {
+		if _, ok := stageConfigs[conn.From.Stage]; !ok {
+			return nil, fmt.Errorf("flow conn: 'from' stage does not exist: %v", conn.From)
 		}
 	}
 
 	for _, s := range stages {
-		stageID := s.ID()
-		s.Init(StageConfig{
-			In:    stageIns[stageID],
-			Out:   stageOuts[stageID],
-			Trace: stageTraces[stageID],
-		})
+		s.Connect(stageConfigs[s.ID()])
 		sv.Add(s)
 	}
 
@@ -85,37 +84,28 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 		ps:         ps,
 		stages:     stages,
 		stageConns: stageConns,
-		outputs:    flowOutputs,
+		flowConns:  flowConns,
 
-		stageIns:    stageIns,
-		stageOuts:   stageOuts,
-		stageTraces: stageTraces,
+		stageConfigs: stageConfigs,
 	}, nil
 }
 
-func (f *Flow) Init(cfg StageConfig) {
-	f.StageBase.Init(cfg)
+func (f *Flow) Connect(cfg StageConfig) {
+	f.StageBase.Connect(cfg)
 
 	// Create a coordinator service to coordinate message
 	// delivery between the flow and its stages.
 	c := coordinator{
-		flowID:     f.ID(),
-		ps:         f.ps,
-		stageConns: f.stageConns,
-
-		flowIn:    f.In,
-		flowOut:   f.Out,
-		flowTrace: f.Trace,
-
-		flowOutputs: f.outputs,
-
-		stageIns:    f.stageIns,
-		stageOuts:   f.stageOuts,
-		stageTraces: f.stageTraces,
+		flowID:       f.ID(),
+		ps:           f.ps,
+		stageConns:   f.stageConns,
+		flowConfig:   cfg,
+		flowConns:    f.flowConns,
+		stageConfigs: f.stageConfigs,
 	}
 
 	// The coordinator is treated as another service, alongside the stages.
-	// We add the coordinator in Init so that it doesn't get re-added if f.Serve re-runs.
+	// We add the coordinator in Connect since it needs to know the flow config.
 	f.Add(&c)
 }
 

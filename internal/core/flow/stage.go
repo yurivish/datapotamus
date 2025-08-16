@@ -18,25 +18,18 @@ type Stage interface {
 	// since we display them in the UI as the identifiers for a stage.
 	ID() string
 
-	// Called once prior to Serve being called.
-	// Serve may be called multple times due to suture restarts, so any
-	// one-time initialization that needs to be done "once the service is running"
-	// should be done here as this function is called right before the stage is added
-	// to a supervisor.
-	// Actually, as I write this, I'm realizing this is kind of an incoherent idea.
-	// Just because you're added to the supervisor doesn't mean you're actually going to start.
-	// So maybe we need a Deinit to dispose of things if Serve() never gets called?
-	Init(cfg StageConfig)
+	// Called at most once, prior to Serve being called zero or more times.
+	// We need this since the stage constructor does not know how to connect the stage
+	// since that information is available only in the execution context, eg. inside a flow.
+	// Should not create any resources that require Serve to run in order to be cleaned up.
+	Connect(cfg StageConfig)
 
-	// Run the stage, returning an error in case of unexpected failure,
-	// which will restart the stage with exponential backoff.
+	// Run the stage, returning an error in case of unexpected failure.
 	// This implements the suture.Service interface.
 	Serve(ctx context.Context) error
 }
 
-type TraceEvent interface {
-	// Time() time.Time
-}
+type TraceEvent any // for now; later maybe Time() time.Time
 
 type StageConfig struct {
 	// Channel on which the stage will receive input messages
@@ -64,7 +57,7 @@ func (s *StageBase) ID() string {
 	return s.id
 }
 
-func (s *StageBase) Init(cfg StageConfig) {
+func (s *StageBase) Connect(cfg StageConfig) {
 	s.StageConfig = cfg
 }
 

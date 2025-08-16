@@ -21,33 +21,24 @@ type coordinator struct {
 	// Connections between stages
 	stageConns []Conn
 
-	// Channel on which the flow receives input messages
-	flowIn <-chan msg.MsgTo
-	// Channel on which the flow sends output messages
-	flowOut chan<- msg.MsgFrom
-	// Channel on which the flow sends trace events
-	flowTrace chan<- TraceEvent
+	flowConfig StageConfig
 
 	// Connections that expose internal stage ports as flow outputs.
 	// The From field specifies the (stage, port) inside the flow and
 	// the To field specifies the external name and port on the flow,
 	// allowing us to decouple the internal stage structure from the
 	// stages and ports presented by this flow to the outside world.
-	flowOutputs []Conn
+	flowConns []Conn
 
-	// Map from stage ID to input channel for that stage
-	stageIns map[string]chan msg.MsgTo
-	// Map from stage ID to output channel for that stage
-	stageOuts map[string]chan msg.MsgFrom
-	// Map from stage ID to trace channel for that stage
-	stageTraces map[string]chan TraceEvent
+	// Map from stage ID to config containing in/out/trace channels
+	stageConfigs map[string]StageConfig
 }
 
 func (c *coordinator) Serve(ctx context.Context) error {
 	// Connect stage output subjects to input channels
 	for _, conn := range c.stageConns {
 		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, conn.From.Stage, conn.From.Port)
-		in := c.stageIns[conn.To.Stage]
+		in := c.stageConfigs[conn.To.Stage].In
 		defer pubsub.Sub(c.ps, subj, func(subj string, m msg.Msg) {
 			in <- m.To(conn.To)
 		})()
@@ -58,7 +49,7 @@ func (c *coordinator) Serve(ctx context.Context) error {
 	// to new stage/port names to present a cleaner abstraction to the world outside of the flow.
 	// If the To address has a wildcard stage or port, it will be dynamically set per-message based on
 	// the stage and port of the subject on which the message is received.
-	for _, conn := range c.flowOutputs {
+	for _, conn := range c.flowConns {
 		toHasWildcards := conn.To.Stage == "*" || conn.To.Port == "*"
 		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, conn.From.Stage, conn.From.Port)
 		defer pubsub.Sub(c.ps, subj, func(subj string, m msg.Msg) {
@@ -75,7 +66,7 @@ func (c *coordinator) Serve(ctx context.Context) error {
 					to.Port = port
 				}
 			}
-			c.flowOut <- m.From(to)
+			c.flowConfig.Out <- m.From(to)
 		})()
 	}
 
@@ -84,22 +75,20 @@ func (c *coordinator) Serve(ctx context.Context) error {
 	// Connect output channels to their subjects. The waitgroup will finish when
 	// the output channel is closed and remaining messages are processed.
 	// todo: We might need to do something different and simply drain out unprocessed messages.
-	for _, out := range c.stageOuts {
+	for _, cfg := range c.stageConfigs {
 		wg.Go(func() {
 			defer wg.Done()
-			for m := range out {
+			for m := range cfg.Out {
 				subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", c.flowID, m.Stage, m.Port)
 				pubsub.Pub(c.ps, subj, m.Msg)
 			}
 		})
-	}
 
-	for _, trace := range c.stageTraces {
 		wg.Go(func() {
 			defer wg.Done()
-			for e := range trace {
+			for e := range cfg.Trace {
 				fmt.Printf("coord: got trace: %#v\n", e)
-				c.flowTrace <- e
+				c.flowConfig.Trace <- e
 			}
 		})
 	}
@@ -108,26 +97,22 @@ func (c *coordinator) Serve(ctx context.Context) error {
 	// Note that this has to happen before the connections are wired up (above).
 	wg.Go(func() {
 		defer wg.Done()
-		for m := range c.flowIn {
-			c.stageIns[m.Stage] <- m
+		for m := range c.flowConfig.In {
+			c.stageConfigs[m.Stage].In <- m
 		}
 	})
 
 	// Use a defer block so that this runs even if this function panics... or something
 	defer func() {
 		// Close stage inputs
-		for _, ch := range c.stageIns {
-			close(ch)
+		for _, cfg := range c.stageConfigs {
+			close(cfg.In)
 		}
 
-		// Close stage outputs
-		for _, ch := range c.stageOuts {
-			close(ch)
-		}
-
-		// Close stage traces
-		for _, ch := range c.stageTraces {
-			close(ch)
+		// Close stage outputs and traces
+		for _, cfg := range c.stageConfigs {
+			close(cfg.Out)
+			close(cfg.Trace)
 		}
 
 		// Drain stage outputs
