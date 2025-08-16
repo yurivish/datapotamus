@@ -81,12 +81,8 @@ func (f *Flow) SubjectFor(addr msg.Addr) string {
 }
 
 func (f *Flow) Serve(ctx context.Context) error {
-	// Create subscriptions and goroutines to coordinate message
-	// delivery between the flow and its stages.
-	//
-	// Then, start the stage supervisor and wait for stages to complete.
-
-	// todo: rewrite this whole "coordinator" bit -- i find this massively confusing!
+	// Create subscriptions and goroutines to coordinate
+	// message delivery between the flow and its stages.
 
 	// For each stage-to-stage connection, subscribe to the appropriate "From" subject
 	// and send messages to the appropriate "To" channel. From may contain wildcards.
