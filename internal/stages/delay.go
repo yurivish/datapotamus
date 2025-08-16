@@ -30,7 +30,7 @@ func DelayFromConfig(id string, cfg DelayConfig) (*Delay, error) {
 func (s *Delay) Serve(ctx context.Context) error {
 	for {
 		select {
-		case m, ok := <-s.In():
+		case m, ok := <-s.InChan:
 			s.TraceRecv(m.ID)
 			if !ok {
 				return nil

@@ -27,25 +27,30 @@ type Stage interface {
 	// Connect(cfg StageChans)
 
 	// After Connect is called, returns a non-nil channel for input messages to this stage
-	In() chan msg.MsgTo
+	In() chan<- msg.MsgTo
 
 	// After Connect is called, returns a non-nil channel for output messages from this stage
-	Out() chan msg.MsgFrom
+	Out() <-chan msg.MsgFrom
 
 	// After Connect is called, returns a possibly-nil channel for trace messages from this stage
-	Trace() chan TraceEvent
+	Trace() <-chan TraceEvent
 
 	// Run the stage, returning an error in case of unexpected failure.
 	Serve(ctx context.Context) error
 }
 
+// todo: would it be better to make these private?
+// not sure. i just wish we could name them to/out/trace but those are taken by the stage interface
 type StageChans struct {
 	// Channel on which the stage will receive input messages
-	in chan msg.MsgTo
+	InChan chan msg.MsgTo
 	// Channel on which the stage will send output messages
-	out chan msg.MsgFrom
-	// Channel on which the stage will send trace events
-	trace chan TraceEvent
+	OutChan chan msg.MsgFrom
+	// Channel on which the stage will send TraceEvents
+	TraceChan chan TraceEvent
+}
+
+type ConfigBase struct {
 }
 
 func DefaultStageChans() StageChans {
@@ -84,21 +89,21 @@ func (s *StageBase) Connect(cfg StageChans) {
 	s.StageChans = cfg
 }
 
-func (s *StageBase) In() chan msg.MsgTo {
-	return s.StageChans.in
+func (s *StageBase) In() chan<- msg.MsgTo {
+	return s.StageChans.InChan
 }
 
-func (s *StageBase) Out() chan msg.MsgFrom {
-	return s.StageChans.out
+func (s *StageBase) Out() <-chan msg.MsgFrom {
+	return s.StageChans.OutChan
 }
 
-func (s *StageBase) Trace() chan TraceEvent {
-	return s.StageChans.trace
+func (s *StageBase) Trace() <-chan TraceEvent {
+	return s.StageChans.TraceChan
 }
 
 // Send message `m` on port `port`.
 func (s *StageBase) Send(m msg.Msg, port string) {
-	s.out <- m.From(msg.NewAddr(s.id, port))
+	s.OutChan <- m.From(msg.NewAddr(s.id, port))
 }
 
 // Event types emitted onto stage "trace" ports
@@ -141,8 +146,8 @@ type (
 // I think passing the zero message as the parent will do the right thing and create a root.
 func (s *StageBase) TraceSend(parent msg.Msg, data any, port string) {
 	child := parent.Child(data)
-	if s.trace != nil {
-		s.trace <- TraceSend{time.Now(), parent.ID, child}
+	if s.TraceChan != nil {
+		s.TraceChan <- TraceSend{time.Now(), parent.ID, child}
 	}
 	s.Send(child, port)
 }
@@ -153,26 +158,26 @@ func (s *StageBase) TraceMerge(parentIDs []msg.ID) msg.ID {
 		panic("TraceMerge: merge must have at least one parent ID")
 	}
 	id := msg.ID(common.NewID())
-	if s.trace != nil {
-		s.trace <- TraceMerge{time.Now(), parentIDs, id}
+	if s.TraceChan != nil {
+		s.TraceChan <- TraceMerge{time.Now(), parentIDs, id}
 	}
 	return id
 }
 
 func (s *StageBase) TraceRecv(id msg.ID) {
-	if s.trace != nil {
-		s.trace <- TraceRecv{time.Now(), id}
+	if s.TraceChan != nil {
+		s.TraceChan <- TraceRecv{time.Now(), id}
 	}
 }
 
 func (s *StageBase) TraceFailed(id msg.ID, err error) {
-	if s.trace != nil {
-		s.trace <- TraceFailed{time.Now(), id, err}
+	if s.TraceChan != nil {
+		s.TraceChan <- TraceFailed{time.Now(), id, err}
 	}
 }
 
 func (s *StageBase) TraceSucceeded(id msg.ID) {
-	if s.trace != nil {
-		s.trace <- TraceSucceeded{time.Now(), id}
+	if s.TraceChan != nil {
+		s.TraceChan <- TraceSucceeded{time.Now(), id}
 	}
 }

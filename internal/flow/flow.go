@@ -122,14 +122,14 @@ func (f *Flow) Serve(ctx context.Context) error {
 					to.Port = port
 				}
 			}
-			f.Out() <- m.From(to)
+			f.OutChan <- m.From(to)
 		})()
 	}
 
 	var wg sync.WaitGroup
 
 	// I am not confident that this the waitgroup closing logic is correct.
-	flowTraceCh := f.Trace()
+	flowTraceCh := f.TraceChan
 
 	for _, s := range f.stagesById {
 		// Connect output channels to their subjects
@@ -161,7 +161,7 @@ func (f *Flow) Serve(ctx context.Context) error {
 	// the stage In channels will be nil.
 	wg.Go(func() {
 		defer wg.Done()
-		for m := range f.In() {
+		for m := range f.InChan {
 			f.stagesById[m.Stage].In() <- m
 		}
 	})
@@ -174,15 +174,16 @@ func (f *Flow) Serve(ctx context.Context) error {
 		}
 
 		// Close stage outputs and traces
-		for _, s := range f.stagesById {
-			close(s.Out())
-			traceCh := s.Trace()
-			if traceCh != nil {
-				close(traceCh)
-			}
-		}
+		// for _, s := range f.stagesById {
+		// 	close(s.Out)
+		// 	traceCh := s.Trace()
+		// 	if traceCh != nil {
+		// 		close(traceCh)
+		// 	}
+		// }
 
-		// Drain stage outputs
+		// Drain stage outputs (ie. wait for output close)
+		// todo: how do we do the same for trace?
 		wg.Wait()
 	}()
 
