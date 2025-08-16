@@ -12,8 +12,10 @@ import (
 // clojure async flow: No key may be present in both :ins and :outs, allowing for a uniform
 // channel coordinate system of [:process-id :channel-id]. (For us, :stage-id :port-id)
 
+type TraceEvent any // for now; later maybe Time() time.Time
+
 type Stage interface {
-	// an ID for the stage, which has to be unique within its flow.
+	// Stage ID, which must be unique within its flow.
 	// Unlike messages and flows, human-readable IDs are often used for stages
 	// since we display them in the UI as the identifiers for a stage.
 	ID() string
@@ -24,16 +26,18 @@ type Stage interface {
 	// Should not create any resources that require Serve to run in order to be cleaned up.
 	Connect(cfg StageConfig)
 
+	// After Connect is called, returns a non-nil channel for input messages to this stage
 	In() chan msg.MsgTo
+
+	// After Connect is called, returns a non-nil channel for output messages from this stage
 	Out() chan msg.MsgFrom
-	Trace() chan TraceEvent // Allowed to be nil
+
+	// After Connect is called, returns a possibly-nil channel for trace messages from this stage
+	Trace() chan TraceEvent
 
 	// Run the stage, returning an error in case of unexpected failure.
-	// This implements the suture.Service interface.
 	Serve(ctx context.Context) error
 }
-
-type TraceEvent any // for now; later maybe Time() time.Time
 
 type StageConfig struct {
 	// Channel on which the stage will receive input messages

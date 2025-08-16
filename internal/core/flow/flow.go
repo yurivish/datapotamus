@@ -42,6 +42,9 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 	stagesById := map[string]Stage{}
 
 	for _, s := range stages {
+		if _, ok := stagesById[s.ID()]; ok {
+			return nil, fmt.Errorf("flow: duplicate stage id: %q", s.ID())
+		}
 		stagesById[s.ID()] = s
 	}
 
@@ -84,6 +87,10 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 func (f *Flow) Serve(ctx context.Context) error {
 	// Create subscriptions and goroutines to coordinate message
 	// delivery between the flow and its stages.
+	//
+	// Then, start the stage supervisor and wait for stages to complete.
+
+	// todo: rewrite this whole "coordinator" bit -- i find this massively confusing!
 
 	// Connect stage output subjects to stage input channels
 	for _, conn := range f.stageConns {
@@ -148,7 +155,8 @@ func (f *Flow) Serve(ctx context.Context) error {
 	}
 
 	// Launch a goroutine to publish flow input messages to the appropriate stage subject
-	// Note that this has to happen before the connections are wired up (above).
+	// Note that this has to happen after the connections are wired up (above); otherwise
+	// the stage In channels will be nil.
 	wg.Go(func() {
 		defer wg.Done()
 		for m := range f.In() {
@@ -176,9 +184,8 @@ func (f *Flow) Serve(ctx context.Context) error {
 		wg.Wait()
 	}()
 
-	// Wait until the flow stages are finished
+	// Wait until stages are finished
 	err := <-f.stageSupervisor.ServeBackground(ctx)
-
 	if err != nil {
 		// If the flow fails, do not automatically restart it.
 		return errors.Join(suture.ErrDoNotRestart, err)
@@ -186,8 +193,8 @@ func (f *Flow) Serve(ctx context.Context) error {
 	return nil
 }
 
-// A connection from an address to itself, often used to expose
-// a stage output as a flow output with the same address.
+// Returns a connection from an address to itself, which can be used
+// to expose a stage output as a flow output with the same address.
 func SelfConn(addr msg.Addr) Conn {
 	return Conn{addr, addr}
 }
