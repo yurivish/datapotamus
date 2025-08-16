@@ -22,6 +22,7 @@ func (s *Delay) Serve(ctx context.Context) error {
 		case m, ok := <-s.Ch.In:
 			s.TraceRecv(m.ID)
 			if !ok {
+				close(s.Ch.Out)
 				return nil
 			}
 			time.Sleep(s.duration)

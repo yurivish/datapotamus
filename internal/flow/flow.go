@@ -18,6 +18,12 @@ type Conn struct {
 	To   msg.Addr
 }
 
+// Returns a connection from an address to itself, which can be used
+// to expose a stage output as a flow output with the same address.
+func SelfConn(addr msg.Addr) Conn {
+	return Conn{addr, addr}
+}
+
 // A Flow is a collection of connected communicating stages
 type Flow struct {
 	Base                          // A flow is a stage
@@ -90,7 +96,6 @@ func (f *Flow) Serve(ctx context.Context) error {
 	for _, conn := range f.stageConns {
 		// The input of the "To" stage
 		in := f.stagesById[conn.To.Stage].In()
-		// The subject onto which the "From" messages are published
 		subj := f.SubjectFor(conn.From)
 		defer pubsub.Sub(f.ps, subj, func(subj string, m msg.Msg) {
 			in <- m.To(conn.To)
@@ -100,7 +105,6 @@ func (f *Flow) Serve(ctx context.Context) error {
 	// For each stage-to-flow output connection, subscribe to the appropriate "From" subject
 	// and send messages to the appropriate "To" address, remapping wildcards as necessary.
 	for _, conn := range f.flowConns {
-		// The subject onto which the "From" messages are published
 		subj := f.SubjectFor(conn.From)
 		defer pubsub.Sub(f.ps, subj, func(subj string, m msg.Msg) {
 			// Copy the "To" address by value so that we can override its fields in the case of wildcards
@@ -131,18 +135,38 @@ func (f *Flow) Serve(ctx context.Context) error {
 	flowTraceCh := f.Ch.Trace
 	for _, s := range f.stagesById {
 		// Each stage publishes its outputs onto the pubsub subject for that stage and port.
+		// This is equivalent to a range loop with context cancellation.
 		wg.Go(func() {
-			for m := range s.Out() {
-				subj := f.SubjectFor(m.Addr)
-				pubsub.Pub(f.ps, subj, m.Msg)
+			outCh := s.Out()
+			for {
+				select {
+				case m, ok := <-outCh:
+					if !ok {
+						return
+					}
+					subj := f.SubjectFor(m.Addr)
+					pubsub.Pub(f.ps, subj, m.Msg)
+				case <-ctx.Done():
+					return
+				}
 			}
 		})
 
-		// Each stage forwards its trace vanles to the flow trace channel
-		if flowTraceCh != nil && s.Trace() != nil {
+		traceCh := s.Trace()
+		if flowTraceCh != nil && traceCh != nil {
+			// Each stage forwards its trace values to the flow trace channel
+			// This is equivalent to a range loop with context cancellation.
 			wg.Go(func() {
-				for e := range s.Trace() {
-					flowTraceCh <- e
+				for {
+					select {
+					case e, ok := <-traceCh:
+						if !ok {
+							return
+						}
+						flowTraceCh <- e
+					case <-ctx.Done():
+						return
+					}
 				}
 			})
 		}
@@ -151,14 +175,12 @@ func (f *Flow) Serve(ctx context.Context) error {
 	// Start the stages
 	errCh := f.sv.ServeBackground(ctx)
 
-	// Publish flow input messages to the appropriate stage subjects.
-	// We do not trace messages inside the Flow stage.
 loop:
+	// Publish flow input messages to the appropriate stage subjects.
 	for {
 		select {
 		case m, ok := <-f.Ch.In:
 			if !ok {
-				// find some way to kick off graceful shutdown...
 				break loop
 			}
 			f.stagesById[m.Stage].In() <- m
@@ -179,10 +201,4 @@ loop:
 // Fulfill the HasSupervisor interface
 func (f *Flow) GetSupervisor() *suture.Supervisor {
 	return f.sv
-}
-
-// Returns a connection from an address to itself, which can be used
-// to expose a stage output as a flow output with the same address.
-func SelfConn(addr msg.Addr) Conn {
-	return Conn{addr, addr}
 }

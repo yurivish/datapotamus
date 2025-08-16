@@ -37,6 +37,7 @@ func (s *JQ) Serve(ctx context.Context) error {
 		select {
 		case m, ok := <-s.Ch.In:
 			if !ok {
+				close(s.Ch.Out)
 				return nil
 			}
 			fmt.Println("jq pre received")

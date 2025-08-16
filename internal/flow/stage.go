@@ -25,7 +25,16 @@ type Stage interface {
 	In() chan<- msg.MsgTo
 
 	// Returns a non-nil channel for output messages from this stage.
-	// The stage closes the channel when it is done processing all input messages.
+	// The stage closes the channel when it is finished processing.
+	// In general, a stage may never close its Out channel, since it may
+	// not structurally have the information to know when (if ever) it is "done".
+	// An example of this would be a "random source" stage that sends a random number
+	// every second. Another example is the Flow stage, since it cannot know whether
+	// a stage inside it has the same flavor as the "random source" described above.
+	//
+	// For more well-behaved flows, however, it should be possible to detect completion
+	// by looking at the Trace outputs and seeing whether all messages derived from
+	// the input messages have either succeeded or failed.
 	Out() <-chan msg.MsgFrom
 
 	// Returns a possibly-nil channel for trace messages from this stage
