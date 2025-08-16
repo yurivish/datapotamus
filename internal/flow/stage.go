@@ -100,20 +100,10 @@ func (s *Base) Trace() <-chan TraceEvent {
 	return s.Ch.Trace
 }
 
-// Send message `m` on port `port`.
-func (s *Base) Send(m msg.Msg, port string) {
-	s.Ch.Out <- m.From(msg.NewAddr(s.id, port))
-}
-
-// func (s *StageBase) WithChans(chans StageChans) *StageBase {
-// 	s.Ch = chans
-// 	return s
-// }
-
 // Event types emitted onto stage "trace" ports
 type (
 	// recorded right before the message was sent by the stage
-	TraceSend struct {
+	TraceSendFrom struct {
 		Time     time.Time
 		ParentID msg.ID
 		Message  msg.Msg
@@ -148,12 +138,12 @@ type (
 
 // Create a child message with the provided parent and data, and send it on the given port.
 // I think passing the zero message as the parent will do the right thing and create a root.
-func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
+func (s *Base) TraceSend(port string, parent msg.Msg, data any) {
 	child := parent.Child(data)
 	if s.Ch.Trace != nil {
-		s.Ch.Trace <- TraceSend{time.Now(), parent.ID, child}
+		s.Ch.Trace <- TraceSendFrom{time.Now(), parent.ID, child}
 	}
-	s.Send(child, port)
+	s.Ch.Out <- child.From(msg.NewAddr(s.id, port))
 }
 
 func (s *Base) TraceRecv(id msg.ID) {

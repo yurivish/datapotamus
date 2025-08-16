@@ -37,7 +37,6 @@ func (s *JQ) Serve(ctx context.Context) error {
 		select {
 		case m, ok := <-s.Ch.In:
 			if !ok {
-				// shut down gracefully if the input channel is closed
 				return nil
 			}
 			fmt.Println("jq pre received")
@@ -45,12 +44,10 @@ func (s *JQ) Serve(ctx context.Context) error {
 			fmt.Println("jq received")
 			results, err := s.Query(ctx, m.Data)
 			if err != nil {
-				// send the error
 				s.TraceFailure(m.ID, err)
 			} else {
-				// send the results
 				for _, result := range results {
-					s.TraceSend(m.Msg, result, "out")
+					s.TraceSend("out", m.Msg, result)
 				}
 				s.TraceSuccess(m.ID)
 
@@ -63,11 +60,11 @@ func (s *JQ) Serve(ctx context.Context) error {
 			return nil
 		}
 	}
-
 }
 
-// Run the JQ query with the input data, eagerly materializing the results to stay within the timeout
-// If an error is encountered during execution, we return the partial results along with the error.
+// Run a JQ query on the input data, eagerly materializing the results to stay within the timeout
+// If an error is encountered during execution, we return the partial results along with the error,
+// though they're not used by the stage right now (we could also continue past the error).
 func (s *JQ) Query(ctx context.Context, data any) ([]any, error) {
 	// a note on code.Run from docs:
 	// >  It is safe to call this method in goroutines, to reuse a compiled *Code.
@@ -76,9 +73,9 @@ func (s *JQ) Query(ctx context.Context, data any) ([]any, error) {
 	defer cancel()
 	it := s.code.RunWithContext(qctx, data)
 
-	var results []any
 	// Loop structure inspired by the README example:
 	// https://github.com/itchyny/gojq?tab=readme-ov-file#usage-as-a-library
+	var results []any
 	for {
 		result, ok := it.Next()
 		if !ok {

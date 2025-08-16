@@ -76,6 +76,10 @@ func NewFlow(base *Base, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, f
 	}, nil
 }
 
+func (f *Flow) SubjectFor(addr msg.Addr) string {
+	return fmt.Sprintf("flow.%s.stage.%s.port.%s", f.ID(), addr.Stage, addr.Port)
+}
+
 func (f *Flow) Serve(ctx context.Context) error {
 	// Create subscriptions and goroutines to coordinate message
 	// delivery between the flow and its stages.
@@ -84,104 +88,99 @@ func (f *Flow) Serve(ctx context.Context) error {
 
 	// todo: rewrite this whole "coordinator" bit -- i find this massively confusing!
 
-	// Connect stage output subjects to stage input channels [todo: reword]
-	// Listens to conn.From and forwards the results to the input channel designated by conn.To
+	// For each stage-to-stage connection, subscribe to the appropriate "From" subject
+	// and send messages to the appropriate "To" channel. From may contain wildcards.
+	// If the stage output is closed, fail the message.
 	for _, conn := range f.stageConns {
-		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", f.ID(), conn.From.Stage, conn.From.Port)
+		// The input of the "To" stage
 		in := f.stagesById[conn.To.Stage].In()
+		// The subject onto which the "From" messages are published
+		subj := f.SubjectFor(conn.From)
 		defer pubsub.Sub(f.ps, subj, func(subj string, m msg.Msg) {
 			in <- m.To(conn.To)
 		})()
 	}
 
-	// Connect stage output subjects to the flow output channel.
-	// If `To` has a wildcard it will be dynamically set based on
-	// the port each message was received on.
+	// For each stage-to-flow output connection, subscribe to the appropriate "From" subject
+	// and send messages to the appropriate "To" address, remapping wildcards as necessary.
 	for _, conn := range f.flowConns {
-		toHasWildcards := conn.To.Stage == "*" || conn.To.Port == "*"
-		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", f.ID(), conn.From.Stage, conn.From.Port)
+		// The subject onto which the "From" messages are published
+		subj := f.SubjectFor(conn.From)
 		defer pubsub.Sub(f.ps, subj, func(subj string, m msg.Msg) {
+			// Copy the "To" address by value so that we can override its fields in the case of wildcards
 			to := conn.To
-			if toHasWildcards {
+
+			// If the "To" subject has wildcards then we want to dynamically send to a different
+			// output stage and/or port on a per-message basis.
+			if to.Stage == "*" || to.Port == "*" {
 				tsa := [3]string{} // tokenize the subject into a (hopefully) stack-allocated slice
 				tts := sublist.TokenizeSubjectIntoSlice(tsa[:0], subj)
 				stage, port := tts[1], tts[2]
-				if conn.To.Stage == "*" {
+				if to.Stage == "*" {
 					to.Stage = stage
 				}
-				if conn.To.Port == "*" {
+				if to.Port == "*" {
 					to.Port = port
 				}
 			}
+			// Send the message to this flow's output channel
 			f.Ch.Out <- m.From(to)
 		})()
 	}
 
+	// The code above handles the subscribers -- now we handle publishing.
+
 	var wg sync.WaitGroup
 
-	// I am not confident that this the waitgroup closing logic is correct.
 	flowTraceCh := f.Ch.Trace
-
 	for _, s := range f.stagesById {
-		// Connect output channels to their subjects
+		// Each stage publishes its outputs onto the pubsub subject for that stage and port.
 		wg.Go(func() {
-			defer wg.Done()
 			for m := range s.Out() {
-				subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", f.ID(), m.Stage, m.Port)
+				subj := f.SubjectFor(m.Addr)
 				pubsub.Pub(f.ps, subj, m.Msg)
 			}
 		})
 
-		// Connect trace channels to the flow trace output
-		if flowTraceCh != nil {
-			traceCh := s.Trace()
-			if traceCh != nil {
-				wg.Go(func() {
-					defer wg.Done()
-					for e := range traceCh {
-						fmt.Printf("coord: got trace: %#v\n", e)
-						flowTraceCh <- e
-					}
-				})
-			}
+		// Each stage forwards its trace vanles to the flow trace channel
+		if flowTraceCh != nil && s.Trace() != nil {
+			wg.Go(func() {
+				for e := range s.Trace() {
+					flowTraceCh <- e
+				}
+			})
 		}
 	}
 
-	// Launch a goroutine to publish flow input messages to the appropriate stage subject
-	// Note that this has to happen after the connections are wired up (above); otherwise
-	// the stage In channels will be nil.
+	// Publish flow input messages to the appropriate stage subject.
 	wg.Go(func() {
-		defer wg.Done()
 		for m := range f.Ch.In {
 			f.stagesById[m.Stage].In() <- m
 		}
 	})
 
-	// Use a defer block so that this runs even if this function panics... or something
-	defer func() {
-		// Close stage inputs
-		for _, s := range f.stagesById {
-			close(s.In())
-		}
+	// //
+	// // Use a defer block so that this runs even if this function panics... or something
+	// defer func() {
+	// 	// Close stage inputs
+	// 	for _, s := range f.stagesById {
+	// 		close(s.In())
+	// 	}
 
-		// Close stage outputs and traces
-		// for _, s := range f.stagesById {
-		// 	close(s.Out)
-		// 	traceCh := s.Trace()
-		// 	if traceCh != nil {
-		// 		close(traceCh)
-		// 	}
-		// }
+	// 	// Drain stage outputs (ie. wait for output close)
+	// 	// todo: how do we do the same for trace?
+	// 	wg.Wait()
+	// }()
 
-		// Drain stage outputs (ie. wait for output close)
-		// todo: how do we do the same for trace?
-		wg.Wait()
-	}()
+	// Once the flow input channel is closed, close
+	// for _, s := range f.stagesById {
+	// 	close(s.In())
+	// }
 
-	// Wait until stages are finished
-	err := <-f.sv.ServeBackground(ctx)
+	// Start the stages and wait until they're finished
+	err := f.sv.Serve(ctx)
 	if err != nil {
-		// If the flow fails, do not automatically restart it.
+		// If the stage supervisor failed, do not automatically restart the flow.
 		return errors.Join(suture.ErrDoNotRestart, err)
 	}
 	return nil

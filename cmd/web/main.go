@@ -26,7 +26,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	f, err := flow.NewFlow(
 		flow.NewBase("flow1").WithInOut(0),
 		ps,
@@ -59,11 +58,11 @@ loop:
 			}
 			fmt.Println("out:", m)
 
-		case e, ok := <-f.Trace():
-			if !ok {
-				break loop
-			}
-			fmt.Println("trace:", e)
+		// case e, ok := <-f.Trace():
+		// 	if !ok {
+		// 		break loop
+		// 	}
+		// 	fmt.Println("trace:", e)
 
 		case <-time.After(2 * time.Second):
 			fmt.Println("done w loop due to timeout")

@@ -25,7 +25,7 @@ func (s *Delay) Serve(ctx context.Context) error {
 				return nil
 			}
 			time.Sleep(s.duration)
-			s.TraceSend(m.Msg, m.Data, "out")
+			s.TraceSend("out", m.Msg, m.Data)
 			s.TraceSuccess(m.ID)
 		case <-ctx.Done():
 			return nil
