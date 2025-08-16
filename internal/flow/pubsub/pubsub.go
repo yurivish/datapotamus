@@ -2,6 +2,7 @@ package pubsub
 
 import (
 	"context"
+	"math/rand/v2"
 	"runtime"
 
 	"datapotamus.com/internal/common"
@@ -115,18 +116,12 @@ func Pub[M any](ps *PubSub, subj string, message M) {
 	// - Qsubs are queue group subscribers
 	matches := ps.subs.Match(subj)
 	for _, sub := range matches.Psubs {
-		if sub.Debug {
-			// DebugSub handlers are passed the subscriptions that matched this pub subject.
-			handler := sub.Value.(func(string, any, *sublist.SublistResult))
-			handler(subj, message, matches)
-		} else {
-			// Regular handlers are invoked with the subject and message.
-			handler := sub.Value.(func(string, any))
-			handler(subj, message)
-		}
+		pub(subj, message, sub, matches)
 	}
-	// TODO: Explore the "least loaded of 2 random options" idea:
-	// > From https://danluu.com/2choices-eviction/:
+
+	// TODO: Explore the "least loaded of 2 random options" idea, for which
+	// I think we would need to track total messages sent for each sub:
+	// > From https://danluu.com/2choices-eviction/ (yao mentioned it too):
 	// > The Power of Two Random Choices: A Survey of Techniques and Results by Mitzenmacher, Richa, and Sitaraman
 	// > (https://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf)
 	// > has a great explanation. The mathematical intuition is that if we (randomly) throw n balls into n bins,
@@ -134,8 +129,23 @@ func Pub[M any](ps *PubSub, subj string, message M) {
 	// >  just O(log n). But if (instead of choosing randomly) we choose the least loaded of k random bins, the maximum
 	// > is O(log log n / log k) with high probability, i.e., even with two random choices, it's basically O(log log n)
 	// > and each additional choice only reduces the load by a constant factor.
-	if len(matches.Qsubs) > 0 {
-		panic("not designed for queue groups yet")
+	for _, subs := range matches.Qsubs {
+		// Publish to a random subscriber from each queue group
+		sub := subs[rand.IntN(len(subs))]
+		pub(subj, message, sub, matches)
+	}
+}
+
+// Publish a message onto the given subject for the given subscriber.
+func pub[M any](subj string, message M, sub *sublist.Subscription, matches *sublist.SublistResult) {
+	if sub.Debug {
+		// DebugSub handlers are passed the subscriptions that matched this pub subject.
+		handler := sub.Value.(func(string, any, *sublist.SublistResult))
+		handler(subj, message, matches)
+	} else {
+		// Regular handlers are invoked with the subject and message.
+		handler := sub.Value.(func(string, any))
+		handler(subj, message)
 	}
 }
 
