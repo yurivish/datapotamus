@@ -9,7 +9,7 @@ import (
 	"datapotamus.com/internal/flow"
 	"datapotamus.com/internal/flow/msg"
 	"datapotamus.com/internal/flow/pubsub"
-	"datapotamus.com/internal/stage"
+	"datapotamus.com/internal/stages"
 	"github.com/thejerf/suture/v4"
 )
 
@@ -18,13 +18,13 @@ func main() {
 
 	super := suture.NewSimple("app")
 	ps := pubsub.NewPubSub()
-	s1, err := stage.JQFromConfig("s1", stage.JQConfig{Filter: ".[]", TimeoutMillis: 250})
+	s1, err := stages.JQFromConfig("s1", stages.JQConfig{Filter: ".[]", TimeoutMillis: 250})
 	if err != nil {
 		log.Fatal(err)
 	}
-	s2, err := stage.DelayFromConfig("s2", stage.DelayConfig{Millis: 1000})
+	s2, err := stages.DelayFromConfig("s2", stages.DelayConfig{Millis: 1000})
 
-	s3, err := stage.JQFromConfig("s3", stage.JQConfig{Filter: "[.]", TimeoutMillis: 250})
+	s3, err := stages.JQFromConfig("s3", stages.JQConfig{Filter: "[.]", TimeoutMillis: 250})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func main() {
 
 	// note: I think we actually need to set up a bunch of the stuff in the constructor and therefore need to have a separate cleanup function just in case the flow never gets added to the supervisor.
 	// Because otherwise, just because it's serving doesn't mean that it's actually done the subscription work yet.
-	// pubsub.Pub(ps, "flow.flow1.stage.outside.port.input", msg.Msg{Data: []any{1}})
+	// pubsub.Pub(ps, "flow.flow1.stages.outside.port.input", msg.Msg{Data: []any{1}})
 	fmt.Println("sent a mess and now we wait", err)
 
 loop:
