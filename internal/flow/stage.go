@@ -35,6 +35,10 @@ type Stage interface {
 	// For more well-behaved flows, however, it should be possible to detect completion
 	// by looking at the Trace outputs and seeing whether all messages derived from
 	// the input messages have either succeeded or failed.
+	//
+	// Idea for the future: Make a flow.Pipeline type for completable DAG processing
+	// with specified input and output stages, so we can close those and wait for the
+	// output stages to close before closing the Pipeline.
 	Out() <-chan msg.MsgFrom
 
 	// Returns a possibly-nil channel for trace messages from this stage

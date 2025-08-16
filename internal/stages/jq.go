@@ -57,7 +57,6 @@ func (s *JQ) Serve(ctx context.Context) error {
 				// s.Send(msg.NewWithID(id, ...), "out")
 			}
 		case <-ctx.Done():
-			fmt.Printf("jq: %v: ctx done", s.ID())
 			return nil
 		}
 	}
