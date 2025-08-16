@@ -8,9 +8,9 @@ import (
 	"datapotamus.com/internal/flow/msg"
 )
 
-// todo: for validation:
-// clojure async flow: No key may be present in both :ins and :outs, allowing for a uniform
-// channel coordinate system of [:process-id :channel-id]. (For us, :stage-id :port-id)
+// todo: stage instances should specify their ports and should allow validation.
+// Validate that no port is present in both inputs and outputs for a stage, allowing for a
+// uniform port coordinate system of Addr{stage, port} inspired by Clojure's async.flow.
 
 type TraceEvent any // for now; later maybe Time() time.Time
 
@@ -35,63 +35,80 @@ type Stage interface {
 	Serve(ctx context.Context) error
 }
 
-type ConfigBase struct {
-}
-
-func DefaultStageChans() StageChans {
-	return StageChans{
-		In:    make(chan msg.MsgTo, 100),
-		Out:   make(chan msg.MsgFrom, 100),
-		Trace: make(chan TraceEvent, 100)}
-}
-
-type StageChans struct {
+// Contains the channels used by a stage
+type Chans struct {
 	// Channel on which the stage will receive input messages
 	In chan msg.MsgTo
 	// Channel on which the stage will send output messages
 	Out chan msg.MsgFrom
-	// Channel on which the stage will send TraceEvents, may be nil.
+	// Channel on which the stage will send TraceEvents. May be nil.
 	Trace chan TraceEvent
 }
 
-// StageBase implements a subset of the Stage interface and is designed
+// Base implements a subset of the Stage interface and is designed
 // for embedding, simplifying the implementation of other stages
-type StageBase struct {
+type Base struct {
 	// ID of the stage
 	id string
 
 	// This is a public field intended for use by the embedding stage but
 	// not outside of it. Consumers of the stage should access stage chans
 	// only through the Stage interface.
-	Ch StageChans
+	Ch Chans
 }
 
-func NewStageBase(id string, chans StageChans) StageBase {
-	// We return the struct rather than a pointer since this is quite small
-	// and very immutable and I think it makes more sense to embed the struct directly.
-	return StageBase{id, chans}
+// Construct a new Base with nil channels. Channels can
+// be configured by the base.With[In|Out|Trace] methods.
+func NewBase(id string) *Base {
+	return &Base{id, Chans{}}
 }
 
-func (s *StageBase) ID() string {
+// Fluent construction methods
+func (s *Base) WithIn(sz int) *Base {
+	s.Ch.In = make(chan msg.MsgTo, sz)
+	return s
+}
+
+func (s *Base) WithOut(sz int) *Base {
+	s.Ch.Out = make(chan msg.MsgFrom, sz)
+	return s
+}
+
+func (s *Base) WithInOut(sz int) *Base {
+	return s.WithIn(sz).WithOut(sz)
+}
+
+func (s *Base) WithTrace(sz int) *Base {
+	s.Ch.Trace = make(chan TraceEvent, sz)
+	return s
+}
+
+// Partly implement the Stage interface
+func (s *Base) ID() string {
 	return s.id
 }
 
-func (s *StageBase) In() chan<- msg.MsgTo {
+func (s *Base) In() chan<- msg.MsgTo {
 	return s.Ch.In
 }
 
-func (s *StageBase) Out() <-chan msg.MsgFrom {
+func (s *Base) Out() <-chan msg.MsgFrom {
 	return s.Ch.Out
 }
 
-func (s *StageBase) Trace() <-chan TraceEvent {
+func (s *Base) Trace() <-chan TraceEvent {
 	return s.Ch.Trace
 }
 
 // Send message `m` on port `port`.
-func (s *StageBase) Send(m msg.Msg, port string) {
+func (s *Base) Send(m msg.Msg, port string) {
 	s.Ch.Out <- m.From(msg.NewAddr(s.id, port))
 }
+
+// func (s *StageBase) WithChans(chans StageChans) *StageBase {
+// 	s.Ch = chans
+// 	return s
+// }
 
 // Event types emitted onto stage "trace" ports
 type (
@@ -102,36 +119,36 @@ type (
 		Message  msg.Msg
 	}
 
-	// created a new merge node independent of any messages
-	TraceMerge struct {
-		Time      time.Time
-		ParentIDs []msg.ID
-		ID        msg.ID
-	}
-
 	// recorded right after the message was received by the stage
 	TraceRecv struct {
 		Time time.Time
 		ID   msg.ID
 	}
 
+	// message processing failed. not sure how we should count things like snooze/retry etc.
+	TraceFailure struct {
+		Time  time.Time
+		ID    msg.ID
+		Error error
+	}
+
 	// messages successfully processed
-	TraceSucceeded struct {
+	TraceSuccess struct {
 		Time time.Time
 		ID   msg.ID
 	}
 
-	// message processing failed. may include retry/snooze params here later or maybe those should go elsewhere.
-	TraceFailed struct {
-		Time  time.Time
-		ID    msg.ID
-		Error error
+	// created a new merge node independent of any messages
+	TraceMerge struct {
+		Time      time.Time
+		ParentIDs []msg.ID
+		ID        msg.ID
 	}
 )
 
 // Create a child message with the provided parent and data, and send it on the given port.
 // I think passing the zero message as the parent will do the right thing and create a root.
-func (s *StageBase) TraceSend(parent msg.Msg, data any, port string) {
+func (s *Base) TraceSend(parent msg.Msg, data any, port string) {
 	child := parent.Child(data)
 	if s.Ch.Trace != nil {
 		s.Ch.Trace <- TraceSend{time.Now(), parent.ID, child}
@@ -139,8 +156,26 @@ func (s *StageBase) TraceSend(parent msg.Msg, data any, port string) {
 	s.Send(child, port)
 }
 
+func (s *Base) TraceRecv(id msg.ID) {
+	if s.Ch.Trace != nil {
+		s.Ch.Trace <- TraceRecv{time.Now(), id}
+	}
+}
+
+func (s *Base) TraceFailure(id msg.ID, err error) {
+	if s.Ch.Trace != nil {
+		s.Ch.Trace <- TraceFailure{time.Now(), id, err}
+	}
+}
+
+func (s *Base) TraceSuccess(id msg.ID) {
+	if s.Ch.Trace != nil {
+		s.Ch.Trace <- TraceSuccess{time.Now(), id}
+	}
+}
+
 // Records the given multi-parent merge edge on the "trace" port and returns its ID
-func (s *StageBase) TraceMerge(parentIDs []msg.ID) msg.ID {
+func (s *Base) TraceMerge(parentIDs []msg.ID) msg.ID {
 	if len(parentIDs) == 0 {
 		panic("TraceMerge: merge must have at least one parent ID")
 	}
@@ -149,22 +184,4 @@ func (s *StageBase) TraceMerge(parentIDs []msg.ID) msg.ID {
 		s.Ch.Trace <- TraceMerge{time.Now(), parentIDs, id}
 	}
 	return id
-}
-
-func (s *StageBase) TraceRecv(id msg.ID) {
-	if s.Ch.Trace != nil {
-		s.Ch.Trace <- TraceRecv{time.Now(), id}
-	}
-}
-
-func (s *StageBase) TraceFailed(id msg.ID, err error) {
-	if s.Ch.Trace != nil {
-		s.Ch.Trace <- TraceFailed{time.Now(), id, err}
-	}
-}
-
-func (s *StageBase) TraceSucceeded(id msg.ID) {
-	if s.Ch.Trace != nil {
-		s.Ch.Trace <- TraceSucceeded{time.Now(), id}
-	}
 }

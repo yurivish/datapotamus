@@ -2,29 +2,18 @@ package stages
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"datapotamus.com/internal/flow"
 )
 
 type Delay struct {
-	flow.StageBase
+	flow.Base
 	duration time.Duration
 }
 
-func NewDelay(id string, duration time.Duration, chans flow.StageChans) *Delay {
-	return &Delay{flow.NewStageBase(id, chans), duration}
-}
-
-type DelayConfig struct {
-	// todo: assert positive duration via validator on the config
-	Millis int64 `json:"millis"`
-}
-
-func DelayFromConfig(id string, cfg DelayConfig) (*Delay, error) {
-	duration := time.Duration(cfg.Millis) * time.Millisecond
-	return NewDelay(id, duration, flow.DefaultStageChans()), nil
+func NewDelay(base *flow.Base, duration time.Duration) *Delay {
+	return &Delay{*base, duration}
 }
 
 func (s *Delay) Serve(ctx context.Context) error {
@@ -35,11 +24,9 @@ func (s *Delay) Serve(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			fmt.Println(s.ID(), "sleeping for", s.duration)
 			time.Sleep(s.duration)
-			// Send a child message with the same data (but a new ID)
 			s.TraceSend(m.Msg, m.Data, "out")
-			s.TraceSucceeded(m.ID)
+			s.TraceSuccess(m.ID)
 		case <-ctx.Done():
 			return nil
 		}

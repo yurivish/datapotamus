@@ -18,35 +18,33 @@ type Conn struct {
 	To   msg.Addr
 }
 
-// A Flow is stage a collection of processing stages connected together by a pubsub mechanism.
+// A Flow is a collection of connected communicating stages
 type Flow struct {
-	// A flow is a stage.
-	StageBase
-
-	// A flow is a service that supervises individual stage services.
-	stageSupervisor *suture.Supervisor
-	ps              *pubsub.PubSub
-	stagesById      map[string]Stage
-	stageConns      []Conn
-	// Stage output ports that are also flow output ports.
-	// The `From` field specifies the flow-internal stage/port address
-	// and the `To` field specifies how to present that to the outside world.
-	// If from and to are identical then the internal structure of the stage
-	// will be mirrored in the output from on flow.Out.
-	flowConns []Conn
+	Base                          // A flow is a stage
+	sv         *suture.Supervisor // Flows supervise its substages
+	ps         *pubsub.PubSub     // Flows manage inter-stage communication with pubsub
+	stagesById map[string]Stage   // Stages indexed by their ID
+	stageConns []Conn             // Connections between stages
+	flowConns  []Conn             // Output connections from stages to the flow
 }
 
-func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, flowConns []Conn) (*Flow, error) {
+func NewFlow(base *Base, ps *pubsub.PubSub, stages []Stage, stageConns []Conn, flowConns []Conn) (*Flow, error) {
 	// Create maps from stage ID to input and output channel
 	stagesById := map[string]Stage{}
 	for _, s := range stages {
+		if s.In() == nil {
+			panic(fmt.Sprintf("flow: stage %q: stage In() channel must not be nil", s.ID()))
+		}
+		if s.Out() == nil {
+			panic(fmt.Sprintf("flow: stage %q: stage Out() channel must not be nil", s.ID()))
+		}
 		if _, ok := stagesById[s.ID()]; ok {
 			return nil, fmt.Errorf("flow: duplicate stage id: %q", s.ID())
 		}
 		stagesById[s.ID()] = s
 	}
 
-	// Validate that all stages referenced from stageConns exist. We do not yet validate ports.
+	// Validate that all stages referenced from stageConns exist.
 	for _, conn := range stageConns {
 		if _, ok := stagesById[conn.From.Stage]; !ok {
 			return nil, fmt.Errorf("stage conn: 'from' stage does not exist: %v", conn.From)
@@ -56,25 +54,25 @@ func NewFlow(flowID string, ps *pubsub.PubSub, stages []Stage, stageConns []Conn
 		}
 	}
 
-	// Validate that all stages referenced from flowConns exist. We do not yet validate ports.
+	// Validate that all stages referenced from flowConns exist.
 	for _, conn := range flowConns {
 		if _, ok := stagesById[conn.From.Stage]; !ok {
 			return nil, fmt.Errorf("flow conn: 'from' stage does not exist: %v", conn.From)
 		}
 	}
 
-	stageSupervisor := suture.NewSimple(flowID)
+	stageSupervisor := suture.NewSimple(base.ID())
 	for _, s := range stages {
 		stageSupervisor.Add(s)
 	}
 
 	return &Flow{
-		StageBase:       NewStageBase(flowID, DefaultStageChans()),
-		stageSupervisor: stageSupervisor,
-		ps:              ps,
-		stagesById:      stagesById,
-		stageConns:      stageConns,
-		flowConns:       flowConns,
+		Base:       *base,
+		sv:         stageSupervisor,
+		ps:         ps,
+		stagesById: stagesById,
+		stageConns: stageConns,
+		flowConns:  flowConns,
 	}, nil
 }
 
@@ -86,7 +84,8 @@ func (f *Flow) Serve(ctx context.Context) error {
 
 	// todo: rewrite this whole "coordinator" bit -- i find this massively confusing!
 
-	// Connect stage output subjects to stage input channels
+	// Connect stage output subjects to stage input channels [todo: reword]
+	// Listens to conn.From and forwards the results to the input channel designated by conn.To
 	for _, conn := range f.stageConns {
 		subj := fmt.Sprintf("flow.%s.stage.%s.port.%s", f.ID(), conn.From.Stage, conn.From.Port)
 		in := f.stagesById[conn.To.Stage].In()
@@ -180,12 +179,17 @@ func (f *Flow) Serve(ctx context.Context) error {
 	}()
 
 	// Wait until stages are finished
-	err := <-f.stageSupervisor.ServeBackground(ctx)
+	err := <-f.sv.ServeBackground(ctx)
 	if err != nil {
 		// If the flow fails, do not automatically restart it.
 		return errors.Join(suture.ErrDoNotRestart, err)
 	}
 	return nil
+}
+
+// Fulfill the HasSupervisor interface
+func (f *Flow) GetSupervisor() *suture.Supervisor {
+	return f.sv
 }
 
 // Returns a connection from an address to itself, which can be used

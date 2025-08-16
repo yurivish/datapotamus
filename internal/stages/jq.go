@@ -12,25 +12,13 @@ import (
 // todo: where if anywhere should we use suture.ErrTerminateSupervisorTree to fail the whole flow on unexpected errors?
 
 type JQ struct {
-	flow.StageBase
+	flow.Base
 	code    *gojq.Code
 	timeout time.Duration
 }
 
-type JQConfig struct {
-	Filter        string `json:"filter"`
-	TimeoutMillis int64  `json:"timeoutMillis"`
-}
-
-func NewJQ(id string, code *gojq.Code, timeout time.Duration) *JQ {
-	return &JQ{flow.NewStageBase(id, flow.DefaultStageChans()), code, timeout}
-}
-
-func JQFromConfig(id string, cfg JQConfig) (*JQ, error) {
-	if cfg.TimeoutMillis == 0 {
-		return nil, fmt.Errorf("jq config: TimeoutMillis should be greater than zero")
-	}
-	query, err := gojq.Parse(cfg.Filter)
+func NewJQ(base *flow.Base, filter string, timeout time.Duration) (*JQ, error) {
+	query, err := gojq.Parse(filter)
 	if err != nil {
 		return nil, fmt.Errorf("jq: failed to parse filter: %w", err)
 	}
@@ -38,8 +26,10 @@ func JQFromConfig(id string, cfg JQConfig) (*JQ, error) {
 	if err != nil {
 		return nil, fmt.Errorf("jq: failed to compile filter: %w", err)
 	}
-	timeout := time.Duration(cfg.TimeoutMillis) * time.Millisecond
-	return NewJQ(id, code, timeout), nil
+	if timeout <= 0 {
+		return nil, fmt.Errorf("jq config: TimeoutMillis should be greater than zero")
+	}
+	return &JQ{*base, code, timeout}, nil
 }
 
 func (s *JQ) Serve(ctx context.Context) error {
@@ -56,13 +46,13 @@ func (s *JQ) Serve(ctx context.Context) error {
 			results, err := s.Query(ctx, m.Data)
 			if err != nil {
 				// send the error
-				s.TraceFailed(m.ID, err)
+				s.TraceFailure(m.ID, err)
 			} else {
 				// send the results
 				for _, result := range results {
 					s.TraceSend(m.Msg, result, "out")
 				}
-				s.TraceSucceeded(m.ID)
+				s.TraceSuccess(m.ID)
 
 				// for merge nodes:
 				// id := s.TraceMerge(...)

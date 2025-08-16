@@ -20,13 +20,9 @@ import (
 
 // Test that delay stage delays messages and preserves parent-child relationships
 func testDelayStageWithDuration(t *testing.T, millis int64) {
-	// Create channels for communication
-	in := make(chan msg.MsgTo, 1)
-	out := make(chan msg.MsgFrom, 1)
-
 	// Create the stage
 	dur := time.Duration(millis) * time.Millisecond
-	delay := NewDelay("test-delay", dur, flow.StageChans{In: in, Out: out})
+	delay := NewDelay(flow.NewBase("test-delay").WithIn(1).WithOut(1), dur)
 
 	ctx := t.Context()
 	errCh := make(chan error, 1)
@@ -38,11 +34,11 @@ func testDelayStageWithDuration(t *testing.T, millis int64) {
 	inMsg := msg.New(data).To(msg.NewAddr("test-delay", "in"))
 
 	start := time.Now()
-	in <- inMsg
+	delay.In() <- inMsg
 
 	// Receive the delayed message
 	select {
-	case outMsg := <-out:
+	case outMsg := <-delay.Out():
 		elapsed := time.Since(start)
 
 		if elapsed < dur {

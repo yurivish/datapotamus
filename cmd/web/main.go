@@ -17,19 +17,18 @@ func main() {
 	fmt.Println("Hi")
 	ps := pubsub.NewPubSub()
 	super := suture.NewSimple("app")
-	s1, err := stages.JQFromConfig("s1", stages.JQConfig{Filter: ".[]", TimeoutMillis: 250})
+	s1, err := stages.NewJQ(flow.NewBase("s1").WithInOut(0), ".[]", 250*time.Millisecond)
 	if err != nil {
 		log.Fatal(err)
 	}
-	s2, err := stages.DelayFromConfig("s2", stages.DelayConfig{Millis: 1000})
-
-	s3, err := stages.JQFromConfig("s3", stages.JQConfig{Filter: "[.]", TimeoutMillis: 250})
+	s2 := stages.NewDelay(flow.NewBase("s2").WithInOut(0), 1000*time.Millisecond)
+	s3, err := stages.NewJQ(flow.NewBase("s3").WithInOut(0), "[.]", 250*time.Millisecond)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	f, err := flow.NewFlow(
-		"flow1",
+		flow.NewBase("flow1").WithInOut(0),
 		ps,
 		[]flow.Stage{s1, s2, s3},
 		[]flow.Conn{

@@ -11,6 +11,16 @@ import (
 	"datapotamus.com/internal/version"
 )
 
+// type DelayConfig struct {
+// 	// todo: assert positive duration via validator on the config
+// 	Millis int64 `json:"millis"`
+// }
+
+// func DelayFromConfig(id string, cfg DelayConfig) (*Delay, error) {
+// 	duration := time.Duration(cfg.Millis) * time.Millisecond
+// 	return NewDelay(id, duration, flow.DefaultStageChans()), nil
+// }
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
