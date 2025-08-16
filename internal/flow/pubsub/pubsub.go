@@ -21,8 +21,9 @@ func NewPubSub() *PubSub {
 
 // Subscriber options.
 type SubOptions struct {
-	SkipCallers int  // Call stack depth to record caller information from for this subscription
-	Debug       bool // Whether or not this is a debug subscription
+	SkipCallers int    // Call stack depth to record caller information from for this subscription
+	Queue       []byte // Queue name for the sublist queue group
+	Debug       bool   // Whether or not this is a debug subscription
 }
 
 // Core subscribe function.
@@ -39,7 +40,7 @@ func sub(ps *PubSub, subj string, handler any, options ...SubOption) context.Can
 
 	// Create the underlyng Subscription object, giving it a unique ID
 	id := common.NewID()
-	sub := sublist.Subscription{Subject: []byte(subj), Value: handler, ID: id, Debug: opts.Debug}
+	sub := sublist.Subscription{Subject: []byte(subj), Value: handler, ID: id, Queue: opts.Queue, Debug: opts.Debug}
 
 	// Gather file and line information for subscription and include them
 	// in the Subscription struct for debugging purposes if available
@@ -166,4 +167,9 @@ func WithDebug() SubOption {
 	}
 }
 
-// TODO: Batch pub. Would mean the whole batch is delivered to the first subscriber, then the second, then ...
+// Used to add subscribers to NATS-style queue groups
+func WithQueueGroup(name string) SubOption {
+	return func(s *SubOptions) {
+		s.Queue = []byte(name)
+	}
+}

@@ -15,9 +15,8 @@ import (
 
 func main() {
 	fmt.Println("Hi")
-
-	super := suture.NewSimple("app")
 	ps := pubsub.NewPubSub()
+	super := suture.NewSimple("app")
 	s1, err := stages.JQFromConfig("s1", stages.JQConfig{Filter: ".[]", TimeoutMillis: 250})
 	if err != nil {
 		log.Fatal(err)
